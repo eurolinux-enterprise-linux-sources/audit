@@ -1,0 +1,27 @@
+diff -Npru audit-2.4.5/auparse/interpret.c audit-2.4.5_escape_bug/auparse/interpret.c
+--- audit-2.4.5/auparse/interpret.c	2015-12-19 06:20:59.000000000 +1100
++++ audit-2.4.5_escape_bug/auparse/interpret.c	2016-01-01 16:33:26.567241361 +1100
+@@ -163,6 +163,7 @@ static void tty_escape(const char *s, ch
+ 			dest[j++] = s[i];
+ 		i++;
+ 	}
++	dest[j] = '\0';	/* terminate string */
+ }
+ 
+ static const char sh_set[] = "\"'`$\\";
+@@ -195,6 +196,7 @@ static void shell_escape(const char *s,
+ 			dest[j++] = s[i];
+ 		i++;
+ 	}
++	dest[j] = '\0';	/* terminate string */
+ }
+ 
+ static const char quote_set[] = ";'\"`#$&*?[]<>{}\\";
+@@ -227,6 +229,7 @@ static void shell_quote_escape(const cha
+ 			dest[j++] = s[i];
+ 		i++;
+ 	}
++	dest[j] = '\0';	/* terminate string */
+ }
+ 
+ /* This should return the count of what needs escaping */

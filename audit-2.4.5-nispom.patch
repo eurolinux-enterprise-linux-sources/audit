@@ -1,0 +1,12 @@
+diff -ur audit-2.4.5.orig/contrib/nispom.rules audit-2.4.5/contrib/nispom.rules
+--- audit-2.4.5.orig/contrib/nispom.rules	2015-12-18 14:11:16.000000000 -0500
++++ audit-2.4.5/contrib/nispom.rules	2016-01-20 11:23:51.650798930 -0500
+@@ -82,7 +82,7 @@
+ ## unsuccessful deletion
+ -a always,exit -F arch=b32 -S unlink,rmdir,unlinkat -F exit=-EACCES -F key=delete
+ -a always,exit -F arch=b64 -S rmdir,unlink,unlinkat -F exit=-EACCES -F key=delete
+--a always,exit -F arch=b32 -S unlink,rmdirunlinkat -F exit=-EPERM -F key=delete
++-a always,exit -F arch=b32 -S unlink,rmdir,unlinkat -F exit=-EPERM -F key=delete
+ -a always,exit -F arch=b64 -S rmdir,unlink,unlinkat -F exit=-EPERM -F key=delete
+ 
+ ## Audit 1, 1(d) Changes in user authenticators.
