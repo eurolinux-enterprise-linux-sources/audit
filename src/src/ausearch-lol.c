@@ -131,6 +131,27 @@ static int inline events_are_equal(event *e1, event *e2)
 	return 1;
 }
 
+// Returns -1 if e1 < e2, 0 if equal, and 1 if e1 > e2
+static int compare_event_time(event *e1, event *e2)
+{
+	if (e1->sec != e2->sec) {
+		if (e1->sec > e2->sec)
+			return 1;
+		return -1;
+	}
+	if (e1->milli != e2->milli) {
+		if (e1->milli > e2->milli)
+			return 1;
+		return -1;
+	}
+	if (e1->serial != e2->serial) {
+		if (e1->serial > e2->serial)
+			return 1;
+		return -1;
+	}
+	return 0;
+}
+
 /*
  * This function will look at the line and pick out pieces of it.
  */
@@ -206,13 +227,15 @@ static void check_events(lol *lo, time_t sec)
 		lolnode *cur = &lo->array[i];
 		if (cur->status == L_BUILDING) {
 			// If 2 seconds have elapsed, we are done
-			if (cur->l->e.sec + 2 < sec) { 
+			if (cur->l->e.sec + 2 <= sec) { 
 				cur->status = L_COMPLETE;
 				ready++;
 			} else if (cur->l->e.type == AUDIT_PROCTITLE ||
 				    cur->l->e.type < AUDIT_FIRST_EVENT ||
 				    cur->l->e.type >= AUDIT_FIRST_ANOM_MSG ||
-				    cur->l->e.type == AUDIT_KERNEL) {
+				    cur->l->e.type == AUDIT_KERNEL ||
+				    (cur->l->e.type >= AUDIT_MAC_UNLBL_ALLOW &&
+				    cur->l->e.type <= AUDIT_MAC_CALIPSO_DEL)) {
 				// If known to be 1 record event, we are done
 				cur->status = L_COMPLETE;
 				ready++;
@@ -254,7 +277,7 @@ int lol_add_record(lol *lo, char *buff)
 			if (n.tlen > MAX_AUDIT_MESSAGE_LENGTH)
 				n.tlen = MAX_AUDIT_MESSAGE_LENGTH;
 		} else
-			n.tlen = MAX_AUDIT_MESSAGE_LENGTH;
+			n.tlen = n.mlen;
 		fmt = LF_ENRICHED;
 	} else {
 		ptr = strrchr(n.message, 0x0a);
@@ -264,7 +287,7 @@ int lol_add_record(lol *lo, char *buff)
 			if (n.mlen > MAX_AUDIT_MESSAGE_LENGTH)
 				n.mlen = MAX_AUDIT_MESSAGE_LENGTH;
 		} else
-			n.mlen = MAX_AUDIT_MESSAGE_LENGTH;
+			n.mlen = strlen(n.message);
 		n.interp = NULL;
 		n.tlen = n.mlen;
 		fmt = LF_RAW;
@@ -310,7 +333,6 @@ void terminate_all_events(lol *lo)
 			ready++;
 		}
 	}
-//printf("maxi = %d\n",lo->maxi);
 }
 
 /* Search the list for any event that is ready to go. The caller
@@ -318,17 +340,35 @@ void terminate_all_events(lol *lo)
 llist* get_ready_event(lol *lo)
 {
 	int i;
+	lolnode *lowest = NULL;
 
 	if (ready == 0)
 		return NULL;
 
 	for (i=0; i<=lo->maxi; i++) {
+		// Look for the event with the lowest time stamp
 		lolnode *cur = &lo->array[i];
-		if (cur->status == L_COMPLETE) {
-			cur->status = L_EMPTY;
-			ready--;
-			return cur->l;
+		if (cur->status == L_EMPTY)
+			continue;
+		if (lowest == NULL)
+			lowest = cur;
+		else if (compare_event_time(&(lowest->l->e), &(cur->l->e)) == 1)
+			lowest = cur;
+	}
+
+	if (lowest && lowest->status == L_COMPLETE) {
+		lowest->status = L_EMPTY;
+		ready--;
+		// Try to consolidate the array so that we iterate
+		// over a smaller portion next time
+		if (lowest == &lo->array[lo->maxi]) {
+			lolnode *ptr = lowest;
+			while (ptr->status == L_EMPTY && lo->maxi > 0) {
+				lo->maxi--;
+				ptr = &lo->array[lo->maxi];
+			}
 		}
+		return lowest->l;
 	}
 
 	return NULL;

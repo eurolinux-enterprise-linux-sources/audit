@@ -1,5 +1,5 @@
 /* auditd-dispatch.c -- 
- * Copyright 2005-07,2013,2016-17 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-07,2013,2016-18 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -47,7 +47,6 @@ int dispatcher_pid(void)
 
 void dispatcher_reaped(void)
 {
-	audit_msg(LOG_INFO, "dispatcher %d reaped", pid);
 	pid = 0;
 	shutdown_dispatcher();
 }

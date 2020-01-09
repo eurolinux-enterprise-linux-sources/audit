@@ -337,7 +337,7 @@ static int remote_server_ending_handler (const char *message)
 	stop_transport();
 	remote_ended = 1;
 	return do_action ("remote server is going down", message,
-			  LOG_NOTICE,
+			  LOG_WARNING,
 			  config.remote_ending_action,
 			  config.remote_ending_exe);
 }
@@ -453,6 +453,7 @@ int main(int argc, char *argv[])
 	struct sigaction sa;
 	struct queue *queue;
 	size_t q_len;
+	int connected_once = 0;
 
 	/* Register sighandlers */
 	sa.sa_flags = 0;
@@ -476,6 +477,7 @@ int main(int argc, char *argv[])
 	ifd = 0;
 	fcntl(ifd, F_SETFL, O_NONBLOCK);
 
+	// Start up the queue
 	queue = init_queue();
 	if (queue == NULL) {
 		syslog(LOG_ERR, "Error initializing audit record queue: %m");
@@ -553,12 +555,15 @@ int main(int argc, char *argv[])
 			do {
 				if (remote_fgets(event, sizeof(event), ifd)) {
 					if (!transport_ok && remote_ended && 
-						config.remote_ending_action ==
-								 FA_RECONNECT) {
+						(config.remote_ending_action ==
+								FA_RECONNECT ||
+							!connected_once)) {
 						quiet = 1;
 						if (init_transport() ==
-								ET_SUCCESS)
+								ET_SUCCESS) {
 							remote_ended = 0;
+							connected_once = 1;
+						}
 						quiet = 0;
 					}
 					/* Strip out EOE records */
@@ -1282,12 +1287,14 @@ static int recv_msg_gss (unsigned char *header, char *msg, uint32_t *mlen)
 	if (major_status != GSS_S_COMPLETE) {
 		gss_failure("decrypting message", major_status, minor_status);
 		free (utok.value);
+		free (etok.value);
 		return -1;
 	}
 
 	if (utok.length < AUDIT_RMW_HEADER_SIZE) {
 		sync_error_handler ("message too short");
 		free (utok.value);
+		free (etok.value);
 		return -1;
 	}
 	memcpy (header, utok.value, AUDIT_RMW_HEADER_SIZE);
@@ -1295,6 +1302,7 @@ static int recv_msg_gss (unsigned char *header, char *msg, uint32_t *mlen)
 	if (! AUDIT_RMW_IS_MAGIC (header, AUDIT_RMW_HEADER_SIZE)) {
 		sync_error_handler ("bad magic number");
 		free (utok.value);
+		free (etok.value);
 		return -1;
 	}
 
@@ -1303,6 +1311,7 @@ static int recv_msg_gss (unsigned char *header, char *msg, uint32_t *mlen)
 	if (rlen > MAX_AUDIT_MESSAGE_LENGTH) {
 		sync_error_handler ("message too long");
 		free (utok.value);
+		free (etok.value);
 		return -1;
 	}
 
@@ -1311,6 +1320,7 @@ static int recv_msg_gss (unsigned char *header, char *msg, uint32_t *mlen)
 	*mlen = rlen;
 
 	free (utok.value);
+	free (etok.value);
 	return 0;
 }
 #endif

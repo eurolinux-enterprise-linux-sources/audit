@@ -2,7 +2,7 @@
 
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
-Version: 2.8.4
+Version: 2.8.5
 Release: 4%{?dist}
 License: GPLv2+
 Group: System Environment/Daemons
@@ -12,14 +12,9 @@ Source0: http://people.redhat.com/sgrubb/audit/%{name}-%{version}.tar.gz
 Patch1: audit-2.7.1-rhel7-fixup.patch
 # DO NOT REMOVE - backlog_wait_time is not in RHEL 7 kernel
 Patch2: audit-2.7.5-no-backlog-wait-time.patch
-# Fix a segfault on shutdown
-Patch3: audit-2.8.4-close.patch
-# Fix a hang on boot (#1587995)
-Patch4: audit-2.8.4-fix-hang.patch
-# Add a sleep so that the report can run before displying it
-Patch5: audit-3.0-state-sleep.patch
-# Add support for ausearch --format text for SOFTWARE_UPDATE events
-Patch6: audit-3.0-sw-update.patch
+Patch3: audit-2.8.6-memleak.patch
+Patch4: audit-3.0-avc.patch
+Patch5: audit-3.0-cond-restart.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: openldap-devel
 BuildRequires: swig
@@ -98,7 +93,6 @@ like relay events to remote machines.
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
-%patch6 -p1
 
 %build
 %configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes \
@@ -171,6 +165,9 @@ fi
 
 %preun
 %systemd_preun auditd.service
+if [ $1 -eq 0 ]; then
+   /sbin/service auditd stop > /dev/null 2>&1
+fi
 
 %postun libs -p /sbin/ldconfig
 
@@ -277,6 +274,27 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
+* Mon May 06 2019 Steve Grubb <sgrubb@redhat.com> 2.8.5-4
+resolves: #1696709 - updating auditd is enabling disabled service 
+
+* Sun May 05 2019 Steve Grubb <sgrubb@redhat.com> 2.8.5-3
+resolves: #1705376 - aureport aborts when using a specific input
+
+* Wed Mar 27 2019 Steve Grubb <sgrubb@redhat.com> 2.8.5-2
+resolves: #1651761 - Fix memory leak reported upstream
+
+* Tue Mar 05 2019 Steve Grubb <sgrubb@redhat.com> 2.8.5-1
+resolves: #1651761 - Rebase audit package to 2.8.5 to pick up bug fixes
+resolves: #1462178 - audit rule arch changed from b32 to b64 on ppc64le
+resolves: #1614833 - audispd loops reloading config 
+resolves: #1622194 - audisp-remote memory leak when using krb5 
+resolves: #1625156 - audisp-remote wont connect if remote ending action not reconnect
+resolves: #1628626 - aureport -a --failed does not display user_avc events 
+resolves: #1648005 - tcp listener socket fails when ipv6.disable=1 boot command
+resolves: #1650670 - space left in auditd.conf expressed as a percentage 
+resolves: #1663285 - ausearch device/inode missing when using a single file 
+resolves: #1672287 - max_log_file_action "keep_logs" doesn't behave as described
+
 * Tue Jul 17 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-4
 resolves: #1559032 - Rebase audit package to 2.8.4 to pick up bug fixes
 

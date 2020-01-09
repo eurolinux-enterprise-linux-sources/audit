@@ -1,0 +1,96 @@
+diff -urp audit-3.0.orig/src/ausearch-parse.c audit-3.0/src/ausearch-parse.c
+--- audit-3.0.orig/src/ausearch-parse.c	2019-03-15 15:30:39.000000000 -0400
++++ audit-3.0/src/ausearch-parse.c	2019-04-16 16:08:52.862402589 -0400
+@@ -49,7 +49,7 @@ static int parse_dir(const lnode *n, sea
+ static int common_path_parser(search_items *s, char *path);
+ static int avc_parse_path(const lnode *n, search_items *s);
+ static int parse_path(const lnode *n, search_items *s);
+-static int parse_user(const lnode *n, search_items *s);
++static int parse_user(const lnode *n, search_items *s, anode *avc);
+ static int parse_obj(const lnode *n, search_items *s);
+ static int parse_login(const lnode *n, search_items *s);
+ static int parse_daemon1(const lnode *n, search_items *s);
+@@ -105,7 +105,7 @@ int extract_search_items(llist *l)
+ 			case AUDIT_FIRST_USER_MSG...AUDIT_USER_END:
+ 			case AUDIT_USER_CHAUTHTOK...AUDIT_LAST_USER_MSG:
+ 			case AUDIT_FIRST_USER_MSG2...AUDIT_LAST_USER_MSG2:
+-				ret = parse_user(n, s);
++				ret = parse_user(n, s, NULL);
+ 				break;
+ 			case AUDIT_SOCKADDR:
+ 				ret = parse_sockaddr(n, s);
+@@ -830,7 +830,7 @@ static int parse_obj(const lnode *n, sea
+ 	return 0;
+ }
+ 
+-static int parse_user(const lnode *n, search_items *s)
++static int parse_user(const lnode *n, search_items *s, anode *avc)
+ {
+ 	char *ptr, *str, *term, saved, *mptr;
+ 
+@@ -915,7 +915,10 @@ static int parse_user(const lnode *n, se
+ 			if (term == NULL)
+ 				return 12;
+ 			*term = 0;
+-			if (audit_avc_init(s) == 0) {
++			if (avc) {
++				avc->scontext = strdup(str);
++				*term = ' ';
++			} else if (audit_avc_init(s) == 0) {
+ 				anode an;
+ 
+ 				anode_init(&an);
+@@ -926,6 +929,31 @@ static int parse_user(const lnode *n, se
+ 				return 13;
+ 		}
+ 	}
++	// optionally get tcontext
++	if (avc && event_object) {
++		// USER_AVC tcontext
++		str = strstr(term, "tcontext=");
++		if (str != NULL) {
++			str += 9;
++			term = strchr(str, ' ');
++			if (term) {
++				*term = 0;
++				avc->tcontext = strdup(str);
++				*term = ' ';
++			}
++		}
++		// Grab tclass if it exists
++		str = strstr(term, "tclass=");
++		if (str) {
++			str += 7;
++			term = strchr(str, ' ');
++			if (term) {
++				*term = 0;
++				avc->avc_class = strdup(str);
++				*term = ' ';
++			}
++		}
++	}
+ 	// optionally get gid
+ 	if (event_gid != -1) {
+ 		if (n->type == AUDIT_ADD_GROUP || n->type == AUDIT_DEL_GROUP ||
+@@ -1880,7 +1908,7 @@ static int parse_avc(const lnode *n, sea
+ other_avc:
+ 	// User AVC's are not formatted like a kernel AVC
+ 	if (n->type == AUDIT_USER_AVC) {
+-		rc = parse_user(n, s);
++		rc = parse_user(n, s, &an);
+ 		if (rc > 20)
+ 			rc = 0;
+ 		if (audit_avc_init(s) == 0) {
+diff -urp audit-3.0.orig/src/ausearch-string.c audit-3.0/src/ausearch-string.c
+--- audit-3.0.orig/src/ausearch-string.c	2019-03-15 15:30:39.000000000 -0400
++++ audit-3.0/src/ausearch-string.c	2019-04-16 15:55:39.186487759 -0400
+@@ -118,6 +118,9 @@ int slist_add_if_uniq(slist *l, const ch
+ 	snode sn;
+         register snode *cur;
+ 
++	if (str == NULL)
++		return -1;
++
+        	cur = l->head;
+ 	while (cur) {
+ 		if (strcmp(str, cur->str) == 0) {

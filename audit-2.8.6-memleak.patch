@@ -1,0 +1,20 @@
+diff --git a/auparse/auparse.c b/auparse/auparse.c
+index 650db02..fe0feb1 100644
+--- a/auparse/auparse.c
++++ b/auparse/auparse.c
+@@ -259,15 +259,6 @@ static event_list_t *au_get_ready_event(auparse_state_t *au, int is_test)
+ 	if (lowest && lowest->status == EBS_COMPLETE) {
+ 		lowest->status = EBS_EMPTY;
+ 		au->au_ready--;
+-		// Try to consolidate the array so that we iterate
+-		// over a smaller portion next time
+-		if (lowest == &lol->array[lol->maxi]) {
+-			au_lolnode *ptr = lowest;
+-			while (ptr->status == EBS_EMPTY && lol->maxi > 0) {
+-				lol->maxi--;
+-				ptr = &lol->array[lol->maxi];
+-			}
+-		}
+ 		return lowest->l;
+ 	}
+ 

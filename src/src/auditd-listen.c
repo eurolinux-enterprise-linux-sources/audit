@@ -782,6 +782,25 @@ static int check_num_connections(struct sockaddr_storage *aaddr)
 	return 0;
 }
 
+void write_connection_state(FILE *f)
+{
+	unsigned int num = 0, act = 0;
+	struct ev_tcp *client = client_chain;
+
+	fprintf(f, "listening for network connections = %s\n",
+		nlsocks ? "yes" : "no");
+	if (nlsocks) {
+		while (client) {
+			if (client->client_active)
+				act++;
+			num++;
+			client = client->next;
+		}
+		fprintf(f, "active connections = %u\n", act);
+		fprintf(f, "total connections = %u\n", num);
+	}
+}
+
 static void auditd_tcp_listen_handler( struct ev_loop *loop,
 	struct ev_io *_io, int revents)
 {
@@ -994,7 +1013,8 @@ int auditd_tcp_listen_init(struct ev_loop *loop, struct daemon_conf *config)
 		listen_socket[nlsocks] = socket(runp->ai_family,
 				 runp->ai_socktype, runp->ai_protocol);
 		if (listen_socket[nlsocks] < 0) {
-        		audit_msg(LOG_ERR, "Cannot create tcp listener socket");
+        		audit_msg(LOG_ERR, "Cannot create %s listener socket",
+				runp->ai_family == AF_INET ? "IPv4" : "IPv6");
 			goto next_try;
 		}
 
@@ -1087,7 +1107,11 @@ next_try:
 			}
 		}
 
-		server_acquire_creds(princ, &server_creds);
+		if (server_acquire_creds(princ, &server_creds)) {
+			free(my_service_name);
+			my_service_name = NULL;
+			return -1;
+		}
 	}
 #endif
 
@@ -1101,7 +1125,7 @@ void auditd_tcp_listen_uninit(struct ev_loop *loop, struct daemon_conf *config)
 #endif
 
 	ev_io_stop(loop, &tcp_listen_watcher);
-	while (nlsocks >= 0) {
+	while (nlsocks > 0) {
 		nlsocks--;
 		close (listen_socket[nlsocks]);
 	}
@@ -1110,6 +1134,8 @@ void auditd_tcp_listen_uninit(struct ev_loop *loop, struct daemon_conf *config)
 	if (use_gss) {
 		use_gss = 0;
 		gss_release_cred(&status, &server_creds);
+		free(my_service_name);
+		my_service_name = NULL;
 	}
 #endif
 

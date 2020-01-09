@@ -204,29 +204,43 @@ static void cont_handler(struct ev_loop *loop, struct ev_signal *sig,
 	fprintf(f, "time = %s\n", buf);
 	write_logging_state(f);
 	fprintf(f, "dispatcher pid = %d\n", dispatcher_pid());
+#ifdef USE_LISTENER
+	write_connection_state(f);
+#endif
 	fclose(f);
 }
 
 static int extract_type(const char *str)
 {
-	const char *tptr, *ptr2, *ptr = str;
+	char tmp, *ptr2, *ptr = str;
+	int type;
 	if (*str == 'n') {
 		ptr = strchr(str+1, ' ');
 		if (ptr == NULL)
 			return -1; // Malformed - bomb out
 		ptr++;
 	}
+
 	// ptr should be at 't'
 	ptr2 = strchr(ptr, ' ');
-	// get type=xxx in a buffer
-	tptr = strndupa(ptr, ptr2 - ptr);
+
 	// find =
-	str = strchr(tptr, '=');
-	if (str == NULL)
+	str = strchr(ptr, '=');
+	if (str == NULL || str >= ptr2)
 		return -1; // Malformed - bomb out
+
 	// name is 1 past
 	str++;
-	return audit_name_to_msg_type(str);
+
+	// Save character & terminate string
+	tmp = *ptr2;
+	*ptr2 = 0;
+
+	type = audit_name_to_msg_type(str);
+
+	*ptr2 = tmp; // Restore character
+
+	return type;
 }
 
 void distribute_event(struct auditd_event *e)
@@ -245,16 +259,15 @@ void distribute_event(struct auditd_event *e)
 			route = 0;
 		else {	// We only need the original type if its being routed
 			e->reply.type = extract_type(e->reply.message);
-			char *p = strchr(e->reply.message,
-					AUDIT_INTERP_SEPARATOR);
-			if (p)
-				proto = AUDISP_PROTOCOL_VER2;
-			else
-				proto = AUDISP_PROTOCOL_VER;
 
+			// Treat everything from the network as VER2
+			// because they are already formatted. This is
+			// important when it gets to the dispatcher which
+			// can strip node= when its VER1.
+			proto = AUDISP_PROTOCOL_VER2;
 		}
 	} else if (e->reply.type != AUDIT_DAEMON_RECONFIG)
-		// All other events need formatting
+		// All other local events need formatting
 		format_event(e);
 	else
 		route = 0; // Don't DAEMON_RECONFIG events until after enqueue
@@ -388,7 +401,7 @@ static int become_daemon(void)
 	if (do_fork) {
 		if (pipe(init_pipe) || 
 				fcntl(init_pipe[0], F_SETFD, FD_CLOEXEC) ||
-				fcntl(init_pipe[0], F_SETFD, FD_CLOEXEC))
+				fcntl(init_pipe[1], F_SETFD, FD_CLOEXEC))
 			return -1;
 		pid = fork();
 	} else
@@ -432,7 +445,9 @@ static int become_daemon(void)
 			break;
 		default:
 			/* Wait for the child to say its done */
-			rc = read(init_pipe[0], &status, sizeof(status));
+			do {
+				rc = read(init_pipe[0], &status,sizeof(status));
+			} while (rc < 0 && errno == EINTR);
 			if (rc < 0)
 				return -1;
 
@@ -661,7 +676,7 @@ int main(int argc, char *argv[])
 #ifndef DEBUG
 	/* Make sure we can do our job. Containers may not give you
 	 * capabilities, so we revert to a uid check for that case. */
-	if (!audit_can_control() || !audit_can_read()) {
+	if (!audit_can_control()) {
 		if (!config.local_events && geteuid() == 0)
 			;
 		else {
@@ -699,6 +714,8 @@ int main(int argc, char *argv[])
 		free_config(&config);
 		return 6;
 	}
+	if (config.daemonize == D_FOREGROUND)
+		config.write_logs = 0;
 
 	// This can only be set at start up
 	opt_aggregate_only = !config.local_events;

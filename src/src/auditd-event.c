@@ -58,7 +58,7 @@ static void do_disk_error_action(const char *func, int err);
 static void fix_disk_permissions(void);
 static void check_excess_logs(void); 
 static void rotate_logs_now(void);
-static void rotate_logs(unsigned int num_logs);
+static void rotate_logs(unsigned int num_logs, unsigned int keep_logs);
 static void shift_logs(void);
 static int  open_audit_log(void);
 static void change_runlevel(const char *level);
@@ -96,9 +96,25 @@ int dispatch_network_events(void)
 
 void write_logging_state(FILE *f)
 {
-	fprintf(f, "current log size = %lu\n", log_size);
-	fprintf(f, "space left on partition = %s\n",
+	fprintf(f, "writing to logs = %s\n", config->write_logs ? "yes" : "no");
+	if (config->daemonize == D_BACKGROUND && config->write_logs) {
+		fprintf(f, "current log size = %lu\n", log_size);
+		fprintf(f, "max log size = %lu KB\n",
+				config->max_log_size * (MEGABYTE/1024));
+		fprintf(f, "space left on partition = %s\n",
 					fs_space_left ? "yes" : "no");
+		int rc;
+		struct statfs buf;
+		rc = fstatfs(log_fd, &buf);
+		if (rc == 0) {
+			fprintf(f, "Logging partition free space %lu MB\n",
+				(buf.f_bavail * buf.f_bsize)/MEGABYTE);
+			fprintf(f, "space_left setting %lu MB\n",
+				config->space_left);
+			fprintf(f, "admin_space_left setting %lu MB\n",
+				config->admin_space_left);
+		}		
+	}
 	fprintf(f, "logging suspended = %s\n",
 					logging_suspended ? "yes" : "no");
 	fprintf(f, "file system space warning sent = %s\n",
@@ -119,7 +135,8 @@ void shutdown_events(void)
 	pthread_join(flush_thread, NULL);
 
 	free((void *)format_buf);
-	fclose(log_file);
+	if (log_file)
+		fclose(log_file);
 	auparse_destroy_ext(NULL, AUPARSE_DESTROY_ALL);
 }
 
@@ -134,6 +151,7 @@ int init_event(struct daemon_conf *conf)
 		fix_disk_permissions();
 		if (open_audit_log())
 			return 1;
+		setup_percentages(config, log_fd);
 	} else {
 		log_fd = 1; // stdout
 		log_file = fdopen(log_fd, "a");
@@ -156,6 +174,7 @@ int init_event(struct daemon_conf *conf)
 	if (format_buf == NULL) {
 		audit_msg(LOG_ERR, "No memory for formatting, exiting");
 		fclose(log_file);
+		log_file = NULL;
 		return 1;
 	}
 	init_flush_thread();
@@ -218,8 +237,10 @@ static void replace_event_msg(struct auditd_event *e, const char *buf)
 			e->reply.message = strndup(buf, MAX_AUDIT_MESSAGE_LENGTH-1);
 			len = MAX_AUDIT_MESSAGE_LENGTH;
 		}
-		e->reply.msg.nlh.nlmsg_len = e->reply.len;
-		e->reply.len = len;
+		// For network originating events, len should be used
+		if (!from_network(e)) // V1 protocol msg size
+			e->reply.msg.nlh.nlmsg_len = e->reply.len;
+		e->reply.len = len; // V2 protocol msg size
 	}
 }
 
@@ -493,7 +514,7 @@ struct auditd_event *create_event(char *msg, ack_func_type ack_func,
 	e->sequence_id = sequence_id;
 
 	/* Network originating events need things adjusted to mimic netlink. */
-	if (e->ack_func)
+	if (from_network(e))
 		replace_event_msg(e, msg);
 
 	return e;
@@ -505,15 +526,16 @@ void handle_event(struct auditd_event *e)
 {
 	if (e->reply.type == AUDIT_DAEMON_RECONFIG && e->ack_func == NULL) {
 		reconfigure(e);
-		if (config->write_logs == 0)
+		if (config->write_logs == 0 && config->daemonize == D_BACKGROUND)
                         return;
                 format_event(e);
 	} else if (e->reply.type == AUDIT_DAEMON_ROTATE) {
 		rotate_logs_now();
-		if (config->write_logs == 0)
+		if (config->write_logs == 0 && config->daemonize == D_BACKGROUND)
 			return;
 	}
-	if (!logging_suspended && config->write_logs) {
+	if (!logging_suspended && (config->write_logs ||
+					config->daemonize == D_FOREGROUND)) {
 		write_to_log(e);
 
 		/* See if we need to flush to disk manually */
@@ -554,7 +576,7 @@ void handle_event(struct auditd_event *e)
 				}
 			}
 		}
-	} else if (!config->write_logs)
+	} else if (!config->write_logs && config->daemonize == D_BACKGROUND)
 		send_ack(e, AUDIT_RMW_TYPE_ACK, "");
 	else if (logging_suspended)
 		send_ack(e,AUDIT_RMW_TYPE_DISKERROR,"remote logging suspended");
@@ -563,7 +585,7 @@ void handle_event(struct auditd_event *e)
 static void send_ack(const struct auditd_event *e, int ack_type,
 			const char *msg)
 {
-	if (e->ack_func) {
+	if (from_network(e)) {
 		unsigned char header[AUDIT_RMW_HEADER_SIZE];
 
 		AUDIT_RMW_PACK_HEADER(header, 0, ack_type, strlen(msg),
@@ -653,6 +675,9 @@ static void check_log_file_size(void)
 	/* did we cross the size limit? */
 	off_t sz = log_size / MEGABYTE;
 
+	if (config->write_logs == 0)
+		return;
+
 	if (sz >= config->max_log_size && (config->daemonize == D_BACKGROUND)) {
 		switch (config->max_log_size_action)
 		{
@@ -671,7 +696,7 @@ static void check_log_file_size(void)
 				if (config->num_logs > 1) {
 					audit_msg(LOG_NOTICE,
 					    "Audit daemon rotating log files");
-					rotate_logs(0);
+					rotate_logs(0, 0);
 				}
 				break;
 			case SZ_KEEP_LOGS:
@@ -752,7 +777,7 @@ static void do_space_left_action(int admin)
 			if (config->num_logs > 1) {
 				audit_msg(LOG_NOTICE,
 					"Audit daemon rotating log files");
-				rotate_logs(0);
+				rotate_logs(0, 0);
 			}
 			break;
 		case FA_EMAIL:
@@ -817,7 +842,7 @@ static void do_disk_full_action(void)
 			if (config->num_logs > 1) {
 				audit_msg(LOG_NOTICE,
 					"Audit daemon rotating log files");
-				rotate_logs(0);
+				rotate_logs(0, 0);
 			}
 			break;
 		case FA_EXEC:
@@ -903,7 +928,7 @@ static void rotate_logs_now(void)
 	if (config->max_log_size_action == SZ_KEEP_LOGS) 
 		shift_logs();
 	else
-		rotate_logs(0);
+		rotate_logs(0, 0);
 }
 
 /* Check for and remove excess logs so that we don't run out of room */
@@ -976,18 +1001,19 @@ static void fix_disk_permissions(void)
 	free(path);
 }
  
-static void rotate_logs(unsigned int num_logs)
+static void rotate_logs(unsigned int num_logs, unsigned int keep_logs)
 {
 	int rc;
 	unsigned int len, i;
 	char *oldname, *newname;
 
-	/* Check that log rotation is enabled in the configuration file. There is
-	 * no need to check for max_log_size_action == SZ_ROTATE because this could be
-	 * invoked externally by receiving a USR1 signal, independently on
-	 *  the action parameter. */
-	if (config->num_logs < 2){
-		audit_msg(LOG_NOTICE, "Log rotation disabled (num_logs < 2), skipping");
+	/* Check that log rotation is enabled in the configuration file. There
+	 * is no need to check for max_log_size_action == SZ_ROTATE because
+	 * this could be invoked externally by receiving a USR1 signal,
+	 * independently on the action parameter. */
+	if (config->num_logs < 2 && !keep_logs){
+		audit_msg(LOG_NOTICE,
+			"Log rotation disabled (num_logs < 2), skipping");
 		return;
 	}
 
@@ -1003,6 +1029,7 @@ static void rotate_logs(unsigned int num_logs)
 			"rotating log file (%s)", strerror(errno));
 	}
 	fclose(log_file);
+	log_file = NULL;
 	
 	/* Rotate */
 	len = strlen(config->log_file) + 16;
@@ -1121,7 +1148,7 @@ static void shift_logs(void)
 		audit_msg(LOG_INFO, "Next log to use will be %s", name);
 	}
 	last_log = num_logs;
-	rotate_logs(num_logs+1);
+	rotate_logs(num_logs+1, 1);
 	free(name);
 }
 
@@ -1324,7 +1351,10 @@ static void reconfigure(struct auditd_event *e)
 	// log format
 	oconf->log_format = nconf->log_format;
 
-	if (oconf->write_logs != nconf->write_logs) {
+	// Only update this if we are in background mode since
+	// foreground mode writes to stderr.
+	if ((oconf->write_logs != nconf->write_logs) &&
+				(oconf->daemonize == D_BACKGROUND)) {
 		oconf->write_logs = nconf->write_logs;
 		need_reopen = 1;
 	}
@@ -1455,6 +1485,7 @@ static void reconfigure(struct auditd_event *e)
 
 	if (need_reopen) {
 		fclose(log_file);
+		log_file = NULL;
 		fix_disk_permissions();
 		if (open_audit_log()) {
 			int saved_errno = errno;
@@ -1475,6 +1506,12 @@ static void reconfigure(struct auditd_event *e)
 	// space left
 	if (oconf->space_left != nconf->space_left) {
 		oconf->space_left = nconf->space_left;
+		need_space_check = 1;
+	}
+
+	// space left percent
+	if (oconf->space_left_percent != nconf->space_left_percent) {
+		oconf->space_left_percent = nconf->space_left_percent;
 		need_space_check = 1;
 	}
 
@@ -1499,6 +1536,13 @@ static void reconfigure(struct auditd_event *e)
 	// admin space left
 	if (oconf->admin_space_left != nconf->admin_space_left) {
 		oconf->admin_space_left = nconf->admin_space_left;
+		need_space_check = 1;
+	}
+
+	// admin space left percent
+	if (oconf->admin_space_left_percent != nconf->admin_space_left_percent){
+		oconf->admin_space_left_percent =
+					nconf->admin_space_left_percent;
 		need_space_check = 1;
 	}
 
@@ -1545,6 +1589,7 @@ static void reconfigure(struct auditd_event *e)
 		 * having to call check_log_file_size to restore it. */
 		int saved_suspend = logging_suspended;
 
+		setup_percentages(oconf, log_fd);
 		fs_space_warning = 0;
 		fs_admin_space_warning = 0;
 		fs_space_left = 1;

@@ -1,0 +1,27 @@
+From 6f699797f43329e16fc89db97e1b95b0cc851860 Mon Sep 17 00:00:00 2001
+From: Steve Grubb <sgrubb@redhat.com>
+Date: Tue, 9 Apr 2019 19:45:27 +0200
+Subject: [PATCH] Make conditional restart conditional again
+
+---
+ init.d/auditd.condrestart | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/init.d/auditd.condrestart b/init.d/auditd.condrestart
+index efbaaa8..d86e5e4 100644
+--- a/init.d/auditd.condrestart
++++ b/init.d/auditd.condrestart
+@@ -2,6 +2,10 @@
+ # Helper script to provide legacy auditd service options not
+ # directly supported by systemd.
+ 
+-/usr/libexec/initscripts/legacy-actions/auditd/restart
+-RETVAL="$?"
+-exit $RETVAL
++state=`service auditd status | awk '/^   Active/ { print $2 }'`
++if [ $state = "active" ] ; then
++	/usr/libexec/initscripts/legacy-actions/auditd/restart
++	RETVAL="$?"
++	exit $RETVAL
++fi
++exit 0
