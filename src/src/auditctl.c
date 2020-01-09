@@ -19,6 +19,7 @@
  * Authors:
  *     Steve Grubb <sgrubb@redhat.com>
  *     Rickard E. (Rik) Faith <faith@redhat.com>
+ *     Richard Guy Briggs <rgb@redhat.com>
  */
 
 #include "config.h"
@@ -32,6 +33,8 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <libgen.h>	/* For basename */
@@ -74,6 +77,7 @@ static int reset_vars(void)
 	_audit_permadded = 0;
 	_audit_archadded = 0;
 	_audit_exeadded = 0;
+	_audit_filterfsadded = 0;
 	_audit_elf = 0;
 	add = AUDIT_FILTER_UNSET;
 	del = AUDIT_FILTER_UNSET;
@@ -151,6 +155,8 @@ static int lookup_filter(const char *str, int *filter)
 		*filter = AUDIT_FILTER_EXIT;
 	else if (strcmp(str, "user") == 0)
 		*filter = AUDIT_FILTER_USER;
+	else if (strcmp(str, "filesystem") == 0)
+		*filter = AUDIT_FILTER_FS;
 	else if (strcmp(str, "exclude") == 0) {
 		*filter = AUDIT_FILTER_EXCLUDE;
 		exclude = 1;
@@ -760,6 +766,13 @@ static int setopt(int count, int lineno, char *vars[])
 			audit_msg(LOG_ERR, 
 			  "Error: syscall auditing being added to user list");
 			return -1;
+		} else if (((add & (AUDIT_FILTER_MASK|AUDIT_FILTER_UNSET)) ==
+				AUDIT_FILTER_FS || (del &
+				(AUDIT_FILTER_MASK|AUDIT_FILTER_UNSET)) ==
+				AUDIT_FILTER_FS)) {
+			audit_msg(LOG_ERR, 
+			  "Error: syscall auditing being added to filesystem list");
+			return -1;
 		} else if (exclude) {
 			audit_msg(LOG_ERR, 
 		    "Error: syscall auditing cannot be put on exclude list");
@@ -936,8 +949,9 @@ static int setopt(int count, int lineno, char *vars[])
 		break;
 	case 'k':
 		if (!(_audit_syscalladded || _audit_permadded ||
-			     _audit_exeadded) || (add==AUDIT_FILTER_UNSET &&
-					del==AUDIT_FILTER_UNSET)) {
+		      _audit_exeadded ||
+		      _audit_filterfsadded) ||
+		    (add==AUDIT_FILTER_UNSET && del==AUDIT_FILTER_UNSET)) {
 			audit_msg(LOG_ERR,
 		    "key option needs a watch or syscall given prior to it");
 			retval = -1;
@@ -1091,8 +1105,10 @@ process_keys:
 	} else {
 		/* Add this to the rule */
 		int ret = audit_rule_fieldpair_data(&rule_new, cmd, flags);
-		if (ret < 0)
+		if (ret != 0) {
+			audit_number_to_errmsg(ret, cmd);
 			retval = -1;
+		}
 		free(cmd);
 	}
     }

@@ -80,7 +80,7 @@ const char *aulookup_syscall(llist *l, char *buf, size_t size)
 	sys = _auparse_lookup_interpretation("syscall");
 	if (sys) {
 		snprintf(buf, size, "%s", sys);
-		free(sys);
+		free((void *)sys);
 		return buf;
 	}
 
@@ -135,7 +135,7 @@ static struct nv_pair socktab[] = {
 
 static const char *aulookup_socketcall(long sc)
 {
-        int i;
+        unsigned int i;
 
         for (i = 0; i < SOCK_NAMES; i++)
                 if (socktab[i].value == sc)
@@ -180,7 +180,7 @@ static struct nv_pair ipctab[] = {
 
 static const char *aulookup_ipccall(long ic)
 {
-        int i;
+        unsigned int i;
 
         for (i = 0; i < IPC_NAMES; i++)
                 if (ipctab[i].value == ic)
@@ -208,7 +208,7 @@ const char *aulookup_uid(uid_t uid, char *buf, size_t size)
 	name = _auparse_lookup_interpretation("auid");
 	if (name) {
 		snprintf(buf, size, "%s", name);
-		free(name);
+		free((void *)name);
 		return buf;
 	}
 

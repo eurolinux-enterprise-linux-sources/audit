@@ -59,7 +59,7 @@ static struct nv_pair timetab[] = {
 
 int lookup_time(const char *name)
 {
-        int i;
+        unsigned int i;
 
         for (i = 0; i < TIME_NAMES; i++) {
                 if (strcmp(timetab[i].name, name) == 0) {
@@ -165,7 +165,7 @@ static void set_tm_this_week(struct tm *d)
         d->tm_sec = 0;          /* seconds */
         d->tm_min = 0;          /* minutes */
         d->tm_hour = 0;         /* hours */
-	t -= (time_t)(tv->tm_wday*SECONDS_IN_DAY);
+	t -= (time_t)(tv->tm_wday*(time_t)SECONDS_IN_DAY);
         tv = localtime(&t);
 	replace_date(d, tv);
 }

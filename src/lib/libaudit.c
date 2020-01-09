@@ -19,6 +19,7 @@
  * Authors:
  *      Steve Grubb <sgrubb@redhat.com>
  *      Rickard E. (Rik) Faith <faith@redhat.com>
+ *      Richard Guy Briggs <rgb@redhat.com>
  */
 
 #include "config.h"
@@ -85,6 +86,7 @@ int _audit_permadded = 0;
 int _audit_archadded = 0;
 int _audit_syscalladded = 0;
 int _audit_exeadded = 0;
+int _audit_filterfsadded = 0;
 unsigned int _audit_elf = 0U;
 static struct libaudit_conf config;
 
@@ -672,7 +674,7 @@ int audit_request_signal_info(int fd)
 
 int audit_update_watch_perms(struct audit_rule_data *rule, int perms)
 {
-	int i, done=0;
+	unsigned int i, done=0;
 
 	if (rule->field_count < 1)
 		return -1;
@@ -976,7 +978,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 	struct audit_rule_data *rule = *rulep;
 
 	if (f == NULL)
-		return -1;
+		return -EAU_FILTERMISSING;
 
 	if (rule->field_count >= (AUDIT_MAX_FIELDS - 1))
 		return -EAU_FIELDTOOMANY;
@@ -1043,7 +1045,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_UID_TO_EUID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_FSUID:
@@ -1069,7 +1071,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_UID_TO_FSUID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_LOGINUID:
@@ -1095,7 +1097,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_UID_TO_AUID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_SUID:
@@ -1121,7 +1123,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_UID_TO_SUID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_OBJ_UID:
@@ -1147,7 +1149,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_SUID_TO_OBJ_UID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_UID:
@@ -1173,7 +1175,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_UID_TO_SUID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 
@@ -1197,7 +1199,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_EGID_TO_SGID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_FSGID:
@@ -1219,7 +1221,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						 AUDIT_COMPARE_EGID_TO_FSGID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_GID:
@@ -1241,7 +1243,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_GID_TO_SGID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_OBJ_GID:
@@ -1263,7 +1265,7 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_SGID_TO_OBJ_GID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		case AUDIT_SGID:
@@ -1285,11 +1287,11 @@ int audit_rule_interfield_comp_data(struct audit_rule_data **rulep,
 						AUDIT_COMPARE_EGID_TO_SGID;
 				break;
 			default:
-				return -1;
+				return -EAU_COMPINCOMPAT;
 			}
 			break;
 		default:
-			return -1;
+			return -EAU_COMPINCOMPAT;
 			break;
 	}
 	rule->field_count++;
@@ -1389,7 +1391,7 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 	struct audit_rule_data *rule = *rulep;
 
 	if (f == NULL)
-		return -1;
+		return -EAU_FILTERMISSING;
 
 	if (rule->field_count >= (AUDIT_MAX_FIELDS - 1))
 		return -EAU_FIELDTOOMANY;
@@ -1466,6 +1468,14 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 		}
 	}
 
+	/* FS filter can be used only with FSTYPE field */
+	if (flags == AUDIT_FILTER_FS) {
+		uint32_t features = audit_get_features();
+		if ((features & AUDIT_FEATURE_BITMAP_FILTER_FS) == 0) {
+			return -EAU_FILTERNOSUPPORT;
+		}
+	}
+
 	rule->fields[rule->field_count] = field;
 	rule->fieldflags[rule->field_count] = op;
 	switch (field)
@@ -1516,7 +1526,7 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 			break;
 		case AUDIT_EXIT:
 			if (flags != AUDIT_FILTER_EXIT)
-				return -7;
+				return -EAU_EXITONLY;
 			vlen = strlen(v);
 			if (isdigit((char)*(v))) 
 				rule->values[rule->field_count] = 
@@ -1535,7 +1545,7 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 		case AUDIT_MSGTYPE:
 			if (flags != AUDIT_FILTER_EXCLUDE &&
 					flags != AUDIT_FILTER_USER)
-				return -EAU_MSGTYPEEXCLUDE;
+				return -EAU_MSGTYPEEXCLUDEUSER;
 
 			if (isdigit((char)*(v)))
 				rule->values[rule->field_count] =
@@ -1580,7 +1590,8 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 			}
 			if (field == AUDIT_FILTERKEY &&
 				!(_audit_syscalladded || _audit_permadded ||
-				_audit_exeadded))
+				_audit_exeadded ||
+				_audit_filterfsadded))
                                 return -EAU_KEYDEP;
 			vlen = strlen(v);
 			if (field == AUDIT_FILTERKEY &&
@@ -1639,7 +1650,7 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 			if (flags != AUDIT_FILTER_EXIT)
 				return -EAU_EXITONLY;
 			else if (op != AUDIT_EQUAL)
-				return -EAU_OPEQNOTEQ;
+				return -EAU_OPEQ;
 			else {
 				unsigned int i, len, val = 0;
 
@@ -1670,12 +1681,28 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 			break;
 		case AUDIT_FILETYPE:
 			if (!(flags == AUDIT_FILTER_EXIT))
-				return -EAU_EXITENTRYONLY;
+				return -EAU_EXITONLY;
 			rule->values[rule->field_count] = 
 				audit_name_to_ftype(v);
 			if ((int)rule->values[rule->field_count] < 0) {
 				return -EAU_FILETYPEUNKNOWN;
 			}
+			break;
+		case AUDIT_FSTYPE:
+			if (!(flags == AUDIT_FILTER_FS))
+				return -EAU_FIELDUNAVAIL;
+			if (!(op == AUDIT_NOT_EQUAL || op == AUDIT_EQUAL))
+				return -EAU_OPEQNOTEQ;
+			if (isdigit((char)*(v))) 
+				rule->values[rule->field_count] = 
+					strtoul(v, NULL, 0);
+			else
+				rule->values[rule->field_count] = 
+					audit_name_to_fstype(v);
+			if ((int)rule->values[rule->field_count] == -1) {
+				return -EAU_FSTYPEUNKNOWN;
+			}
+			_audit_filterfsadded = 1;
 			break;
 		case AUDIT_ARG0...AUDIT_ARG3:
 			vlen = strlen(v);
@@ -1722,7 +1749,7 @@ int audit_rule_fieldpair_data(struct audit_rule_data **rulep, const char *pair,
 			}
 
 			if (field == AUDIT_PPID && !(flags==AUDIT_FILTER_EXIT))
-				return -EAU_EXITENTRYONLY;
+				return -EAU_EXITONLY;
 			
 			if (!isdigit((char)*(v)))
 				return -EAU_FIELDVALNUM;

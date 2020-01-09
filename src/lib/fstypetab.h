@@ -1,5 +1,5 @@
-/* flagtab.h --
- * Copyright 2005,2006, 2016 Red Hat Inc., Durham, North Carolina.
+/* fstypetab.h --
+ * Copyright 2017 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -18,10 +18,9 @@
  *
  * Authors:
  *      Steve Grubb <sgrubb@redhat.com>
- *      Richard Guy Briggs <rgb@redhat.com>
+ *
+ * Source of info: /usr/include/linux/magic.h
+ *
  */
-_S(AUDIT_FILTER_TASK,    "task"      )
-_S(AUDIT_FILTER_EXIT,    "exit"      )
-_S(AUDIT_FILTER_USER,    "user"      )
-_S(AUDIT_FILTER_EXCLUDE, "exclude"   )
-_S(AUDIT_FILTER_FS,      "filesystem")
+_S(0x74726163,	"tracefs"	)
+_S(0x64626720,	"debugfs"	)

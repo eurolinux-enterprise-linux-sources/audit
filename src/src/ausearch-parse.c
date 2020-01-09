@@ -170,6 +170,7 @@ int extract_search_items(llist *l)
 			case AUDIT_MMAP:
 			case AUDIT_NETFILTER_CFG:
 			case AUDIT_PROCTITLE:
+			case AUDIT_KERN_MODULE:
 				// Nothing to parse
 				break;
 			case AUDIT_TTY:
@@ -269,7 +270,7 @@ static int parse_task_info(lnode *n, search_items *s)
 		if (errno)
 			return 21;
 		*term = ' ';
-		if (s->tauid) free(s->tauid);
+		if (s->tauid) free((void *)s->tauid);
 		s->tauid = lookup_uid("auid", s->loginuid);
 	}
 	// optionally get uid
@@ -287,7 +288,7 @@ static int parse_task_info(lnode *n, search_items *s)
 		if (errno)
 			return 24;
 		*term = ' ';
-		if (s->tuid) free(s->tuid);
+		if (s->tuid) free((void *)s->tuid);
 		s->tuid = lookup_uid("uid", s->uid);
 	}
 
@@ -1009,6 +1010,7 @@ static int parse_user(const lnode *n, search_items *s)
 			if (errno)
 				return 15;
 			*term = saved;
+			if (s->tuid) free((void *)s->tuid);
 			s->tuid = lookup_uid("uid", s->uid);
 		}
 	}
@@ -2080,7 +2082,7 @@ static int parse_kernel_anom(const lnode *n, search_items *s)
 		str = strstr(term, "exe=");
 		if (str) {
 			str += 4;
-		if (*str == '"') {
+			if (*str == '"') {
 				str++;
 				term = strchr(str, '"');
 				if (term == NULL)
@@ -2090,7 +2092,7 @@ static int parse_kernel_anom(const lnode *n, search_items *s)
 				*term = '"';
 			} else 
 				s->exe = unescape(str);
-		} else
+		} else if (n->type != AUDIT_ANOM_ABEND)
 			return 14;
 	}
 

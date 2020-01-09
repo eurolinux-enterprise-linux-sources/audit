@@ -96,6 +96,7 @@ extern "C" {
 #define AUDIT_MAC_CHECK		1134    /* User space MAC decision results */
 #define AUDIT_ACCT_LOCK		1135    /* User's account locked by admin */
 #define AUDIT_ACCT_UNLOCK	1136    /* User's account unlocked by admin */
+#define AUDIT_USER_DEVICE	1137	/* User space hotplug device changes */
 
 #define AUDIT_FIRST_DAEMON	1200
 #define AUDIT_LAST_DAEMON	1299
@@ -269,6 +270,10 @@ extern "C" {
 #define AUDIT_KERN_MODULE	1330 /* Kernel Module events */
 #endif
 
+#ifndef AUDIT_FANOTIFY
+#define AUDIT_FANOTIFY		1331 /* Fanotify access decision */
+#endif
+
 #ifndef AUDIT_ANOM_LINK
 #define AUDIT_ANOM_LINK		1702 /* Suspicious use of file links */
 #endif
@@ -277,6 +282,9 @@ extern "C" {
 #define AUDIT_KEY_SEPARATOR 0x01
 
 /* These are used in filter control */
+#ifndef AUDIT_FILTER_FS
+#define AUDIT_FILTER_FS		0x06 /* FS record filter in __audit_inode_child */
+#endif
 #define AUDIT_FILTER_EXCLUDE	AUDIT_FILTER_TYPE
 #define AUDIT_FILTER_MASK	0x07	/* Mask to get actual filter */
 #define AUDIT_FILTER_UNSET	0x80	/* This value means filter is unset */
@@ -305,6 +313,9 @@ extern "C" {
 #ifndef AUDIT_FEATURE_BITMAP_LOST_RESET
 #define AUDIT_FEATURE_BITMAP_LOST_RESET		0x00000020
 #endif
+#ifndef AUDIT_FEATURE_BITMAP_FILTER_FS
+#define AUDIT_FEATURE_BITMAP_FILTER_FS		0x00000040
+#endif
 
 /* Defines for interfield comparison update */
 #ifndef AUDIT_OBJ_UID
@@ -322,6 +333,10 @@ extern "C" {
 
 #ifndef AUDIT_SESSIONID
 #define AUDIT_SESSIONID 25
+#endif
+
+#ifndef AUDIT_FSTYPE
+#define AUDIT_FSTYPE 26
 #endif
 
 #ifndef AUDIT_COMPARE_UID_TO_OBJ_UID
@@ -553,6 +568,8 @@ extern int        audit_name_to_errno(const char *error);
 extern const char *audit_errno_to_name(int error);
 extern int        audit_name_to_ftype(const char *name);
 extern const char *audit_ftype_to_name(int ftype); 
+extern int        audit_name_to_fstype(const char *name);
+extern const char *audit_fstype_to_name(int fstype); 
 extern void audit_number_to_errmsg(int errnumber, const char *opt);
 
 /* AUDIT_GET */

@@ -1,6 +1,6 @@
 /*
 * aureport-output.c - Print the report
-* Copyright (c) 2005-06,2008,2014 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-06,2008,2014,2017 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
 * This software may be freely redistributed and/or modified under the
@@ -545,7 +545,8 @@ void print_per_event_item(llist *l)
 			// on failed logins, loginuid is not set.
 			safe_print_string(((l->s.success == S_FAILED) &&
 				l->s.acct) ? l->s.acct :
-				aulookup_uid(l->s.uid, name, sizeof(name)), 0);
+				aulookup_uid(l->s.loginuid,
+						name, sizeof(name)), 0);
 			printf(" %s %s %s %s %lu\n", 
 				l->s.hostname, l->s.terminal,
 				l->s.exe, aulookup_success(l->s.success),
@@ -865,13 +866,13 @@ static void do_summary_output(void)
 			strftime(tmp, sizeof(tmp), "%x %T", btm);
 		else
 			strcpy(tmp, "?");
-		printf("%s.%03d - ", tmp, very_first_event.milli);
+		printf("%s.%03u - ", tmp, very_first_event.milli);
 		btm = localtime(&very_last_event.sec);
 		if (btm)
 			strftime(tmp, sizeof(tmp), "%x %T", btm);
 		else
 			strcpy(tmp, "?");
-		printf("%s.%03d\n", tmp, very_last_event.milli);
+		printf("%s.%03u\n", tmp, very_last_event.milli);
 	}
 	printf("Selected time for report: ");
 	{
@@ -898,7 +899,7 @@ static void do_summary_output(void)
 		if (end_time) 
 			printf("%s\n", tmp);
 		else 
-			printf("%s.%03d\n", tmp, very_last_event.milli);
+			printf("%s.%03u\n", tmp, very_last_event.milli);
 	}
 	printf("Number of changes in configuration: %lu\n", sd.changes);
 	printf("Number of changes to accounts, groups, or roles: %lu\n",
