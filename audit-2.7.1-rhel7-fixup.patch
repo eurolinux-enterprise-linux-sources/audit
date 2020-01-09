@@ -1,0 +1,21 @@
+diff -urp audit-2.7.1.orig/auparse/classify.c audit-2.7.1/auparse/classify.c
+--- audit-2.7.1.orig/auparse/normalize.c	2016-12-21 19:00:51.000000000 -0500
++++ audit-2.7.1/auparse/normalize.c	2016-12-22 12:22:21.259800153 -0500
+@@ -241,7 +241,7 @@ static void simple_file_attr(auparse_sta
+ 		switch (type)
+ 		{
+ 			case AUDIT_PATH:
+-				f = auparse_find_field(au, "nametype");
++				f = auparse_find_field(au, "objtype");
+ 				if (f && strcmp(f, "PARENT") == 0) {
+ 					if (parent == 0)
+ 					    parent = auparse_get_record_num(au);
+@@ -280,7 +280,7 @@ static void set_file_object(auparse_stat
+ 
+ 	// Now double check that we picked the right one.
+ 	do {
+-		f = auparse_find_field(au, "nametype");
++		f = auparse_find_field(au, "objtype");
+ 		if (f) {
+ 			if (strcmp(f, "PARENT"))
+ 				break;

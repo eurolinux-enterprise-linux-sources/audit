@@ -1,0 +1,48 @@
+Things that need to be done:
+===========================
+2.7.7
+* Optionally don't verify email address domain
+* non-equality comparisons for values other than \timestamp, \timestamp_ex and \record_type in ausearch-expression (#1399314)
+* If auparse input is a pipe timeout events by wall clock
+* auditd.conf space_left sizes can be %
+* Add ability to filter events in auditd
+* Look into TLS support
+* Add sockaddr accessor functions in auparse
+* Add a realpath variant accessor that resolves whole path in auparse
+
+2.8
+* ausearch text format, add 'to xxx' for file perm/owner, & uid/gid changes
+* Support mutiple time streams when searching
+* In audispd, look into non-blocking handling of write to plugins
+* Re-write auvirt
+* Fix auvirt to report AVC's and --proof for --all-events
+* Look at pulling audispd into auditd
+* Fix audit.pc.in to use Requires.private
+* If relative file, use cwd to build (realpath). watch out for (null) and socket
+* Change ausearch to output name="" unless its a real null. (mount) ausearch-report.c, 523. FIXME
+
+3.0
+* Basic HIDS
+* Support ipv6 remote logging
+* Consolidate linked lists and other functions
+* Consolidate parsing code between libaudit and auditd-conf.c
+* Performance improvements for auparse
+* Add rule verify to detect mismatch between in-kernel and on-disk rules
+
+3.0.1
+* Fix SIGHUP for auditd network settings
+* Add gzip format for logs
+* Add keywords for time: month-ago
+
+3.0.2
+* Look at adding the direction read/write to file report (threat modelling)
+* Changes in uid/gid, failed changes in credentials in aureport
+
+3.1
+* Allow -F path!=/var/my/app
+* Look at openat and why passed dir is not given
+* Add SYSLOG data source for auparse. This allows leading text before audit       messages, missing type, any line with no = gets thrown away. iow, must have     time and 1 field to be valid.
+* Fix aureport accounting for avc in permissive mode
+
+3.1.1
+* Fix aureport-scan to properly decide if CONFIG_CHANGE is add or del, need to optionally look for op and use remove/add to decide
