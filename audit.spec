@@ -3,12 +3,13 @@
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
 Version: 2.2
-Release: 2%{?dist}
+Release: 4%{?dist}
 License: GPLv2+
 Group: System Environment/Daemons
 URL: http://people.redhat.com/sgrubb/audit/
 Source0: http://people.redhat.com/sgrubb/audit/%{name}-%{version}.tar.gz
 Patch1: audit-2.2.1-node.patch
+Patch2: audit-2.3-remote.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: swig python-devel
 BuildRequires: tcp_wrappers-devel libcap-ng-devel 
@@ -81,6 +82,7 @@ behavior.
 %prep
 %setup -q
 %patch1 -p1
+%patch2 -p1
 
 %build
 %configure --sbindir=/sbin --libdir=/%{_lib} --with-libwrap --enable-gssapi-krb5=no --with-libcap-ng=yes
@@ -232,6 +234,9 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
+* Thu Feb 13 2014 Steve Grubb <sgrubb@redhat.com> 2.2-4.el6_5
+resolves: #1042734 audisp-remote reconnect problems after transient network err
+
 * Tue Mar 13 2012 Steve Grubb <sgrubb@redhat.com> 2.2-2
 resolves: #803349 allocate extra space for node names
  

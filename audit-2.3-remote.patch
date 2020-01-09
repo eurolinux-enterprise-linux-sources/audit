@@ -1,0 +1,61 @@
+diff -urp audit-2.2.orig/audisp/plugins/remote/audisp-remote.c audit-2.2/audisp/plugins/remote/audisp-remote.c
+--- audit-2.2.orig/audisp/plugins/remote/audisp-remote.c	2012-03-01 13:42:32.000000000 -0500
++++ audit-2.2/audisp/plugins/remote/audisp-remote.c	2013-12-12 16:08:45.452081047 -0500
+@@ -972,7 +972,10 @@ static int init_sock(void)
+ 			syslog(LOG_ERR,
+ 				"Error looking up remote host: %s - exiting",
+ 				gai_strerror(rc));
+-		return ET_PERMANENT;
++		if (rc == EAI_NONAME || rc == EAI_NODATA)
++			return ET_PERMANENT;
++		else
++			return ET_TEMPORARY;
+ 	}
+ 	sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+ 	if (sock < 0) {
+@@ -1063,6 +1063,9 @@ static int init_transport(void)
+ 	{
+ 		case T_TCP:
+ 			rc = init_sock();
++			// We set this so that it will retry the connection
++			if (rc == ET_TEMPORARY)
++				remote_ended = 1;
+ 			break;
+ 		default:
+ 			rc = ET_PERMANENT;
+diff -urp audit-2.2.orig/audisp/plugins/remote/audisp-remote.conf audit-2.2/audisp/plugins/remote/audisp-remote.conf
+--- audit-2.2.orig/audisp/plugins/remote/audisp-remote.conf	2012-03-01 13:42:32.000000000 -0500
++++ audit-2.2/audisp/plugins/remote/audisp-remote.conf	2013-12-12 16:08:52.113081211 -0500
+@@ -20,7 +20,7 @@ network_failure_action = stop
+ disk_low_action = ignore
+ disk_full_action = ignore
+ disk_error_action = syslog
+-remote_ending_action = suspend
++remote_ending_action = reconnect
+ generic_error_action = syslog
+ generic_warning_action = syslog
+ overflow_action = syslog
+diff -urp audit-2.2.orig/audisp/plugins/remote/audisp-remote.conf.5 audit-2.2/audisp/plugins/remote/audisp-remote.conf.5
+--- audit-2.2.orig/audisp/plugins/remote/audisp-remote.conf.5	2012-03-01 13:42:32.000000000 -0500
++++ audit-2.2/audisp/plugins/remote/audisp-remote.conf.5	2013-12-12 16:08:52.114081211 -0500
+@@ -124,7 +124,7 @@ remote end signals a disk error.  The de
+ Likewise, this parameter tells the system what action to take if the
+ remote end signals a disk error. This action has one additional option,
+ .I reconnect
+-which tells the remote plugin to attempt to reconnect to the server upon receipt of the next audit record. If it is unsuccessful, the audit record could be lost. The default is to suspend logging.
++which tells the remote plugin to attempt to reconnect to the server upon receipt of the next audit record. If it is unsuccessful, the audit record could be lost. The default is to reconnect.
+ .TP
+ .I generic_error_action
+ Likewise, this parameter tells the system what action to take if the
+diff -urp audit-2.2.orig/audisp/plugins/remote/remote-config.c audit-2.2/audisp/plugins/remote/remote-config.c
+--- audit-2.2.orig/audisp/plugins/remote/remote-config.c	2012-03-01 13:42:32.000000000 -0500
++++ audit-2.2/audisp/plugins/remote/remote-config.c	2013-12-12 16:08:52.114081211 -0500
+@@ -211,7 +211,7 @@ void clear_config(remote_conf_t *config)
+ 	IA(disk_low, FA_IGNORE);
+ 	IA(disk_full, FA_IGNORE);
+ 	IA(disk_error, FA_SYSLOG);
+-	IA(remote_ending, FA_SUSPEND);
++	IA(remote_ending, FA_RECONNECT);
+ 	IA(generic_error, FA_SYSLOG);
+ 	IA(generic_warning, FA_SYSLOG);
+ 	IA(queue_error, FA_STOP);
