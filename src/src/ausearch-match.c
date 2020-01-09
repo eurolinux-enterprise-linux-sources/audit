@@ -84,13 +84,9 @@ int match(llist *l)
 				if ((event_pid != -1) && 
 						(event_pid != l->s.pid))
 					return 0;
-				if (event_machine != -1 && 
-						(event_machine !=
-					audit_elf_to_machine(l->s.arch)))
+				if ((event_syscall != -1) &&
+						(event_syscall != l->s.syscall))
 					return 0;
-				if ((event_syscall != -1) && 
-					(event_syscall != l->s.syscall))
-						return 0;
 				if ((event_session_id != -2) &&
 					(event_session_id != l->s.session_id))
 					return 0;
@@ -321,15 +317,12 @@ static int context_match(llist *l)
 			}
 		} 
 		if (event_object) {
-			if (l->s.avc) {
-				alist_first(l->s.avc);
-				if (alist_find_obj(l->s.avc)) {
-					do {
-						if (strmatch(event_object, 
-						    l->s.avc->cur->tcontext))
-						    return 1;
-	 				} while(alist_next_obj(l->s.avc));
-				}
+			if (l->s.avc && alist_find_obj(l->s.avc)) {
+				do {
+					if (strmatch(event_object, 
+						l->s.avc->cur->tcontext))
+						return 1;
+				} while(alist_next_obj(l->s.avc));
 			}
 		}
 		return 0;
@@ -340,11 +333,10 @@ static int context_match(llist *l)
 			if (alist_find_subj(l->s.avc)) {
 				do {
 					if (strmatch(event_subject, 
-						l->s.avc->cur->scontext))
-						return 1;
+						l->s.avc->cur->scontext) == 0)
+						return 0;
 				} while(alist_next_subj(l->s.avc));
 			}
-			return 0;
 		} 
 		if (event_object) {
 			if (l->s.avc == NULL)
@@ -352,11 +344,10 @@ static int context_match(llist *l)
 			if (alist_find_obj(l->s.avc)) {
 				do {
 					if (strmatch(event_object, 
-						l->s.avc->cur->tcontext))
-						return 1;
+						l->s.avc->cur->tcontext) == 0)
+						return 0;
 				} while(alist_next_obj(l->s.avc));
 			}
-			return 0;
 		}
 	}
 	return 1;

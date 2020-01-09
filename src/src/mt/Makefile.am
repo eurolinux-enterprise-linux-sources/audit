@@ -1,5 +1,5 @@
 # Makefile.am -- 
-# Copyright 2005-06,2008,2012,2014-15 Red Hat Inc., Durham, North Carolina.
+# Copyright 2005-06,2008 Red Hat Inc., Durham, North Carolina.
 # All Rights Reserved.
 #
 # This library is free software; you can redistribute it and/or
@@ -23,16 +23,16 @@
 # daemon's own use.
 
 AUTOMAKE_OPTIONS = no-dependencies
-AM_CPPFLAGS = -I${top_srcdir}/lib -I${top_builddir}/lib
+INCLUDES = -I${top_srcdir}/lib -I${top_builddir}/lib
 CONFIG_CLEAN_FILES = *.rej *.orig
-AM_CFLAGS = -fPIC -DPIC -D_REENTRANT -D_GNU_SOURCE -DNO_TABLES
+AM_CFLAGS = -fPIC -DPIC -D_REENTRANT -D_GNU_SOURCE
 
 noinst_LIBRARIES = libauditmt.a
 
 libauditmt_a_SOURCES = ${top_srcdir}/lib/libaudit.c \
 	${top_srcdir}/lib/message.c ${top_srcdir}/lib/netlink.c \
 	${top_srcdir}/lib/lookup_table.c ${top_srcdir}/lib/audit_logging.c \
-	${top_srcdir}/lib/deprecated.c ${top_srcdir}/lib/strsplit.c
+	${top_srcdir}/lib/deprecated.c
 libauditmt_a_HEADERS: ${top_builddir}/config.h ${top_srcdir}/lib/libaudit.h \
 	${top_srcdir}/lib/private.h
 libauditmt_a_DEPENDENCIES = $(libaudit_a_SOURCES) ${top_builddir}/config.h \

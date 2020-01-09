@@ -1,5 +1,5 @@
 /* delete_all.c --
- * Copyright 2005-06, 2008-09,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-06, 2008-09 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -29,7 +29,7 @@
 
 #include "auditctl-llist.h"
 
-extern int key_match(const struct audit_rule_data *r);
+extern int key_match(struct audit_reply *rep);
 
 /* Returns 0 for success and -1 for failure */
 int delete_all_rules(int fd)
@@ -73,8 +73,8 @@ int delete_all_rules(int fd)
 				break;
 
 			if (rep.type == NLMSG_ERROR && rep.error->error) {
-				audit_msg(LOG_ERR, 
-					"Error receiving rules list (%s)", 
+				fprintf(stderr, 
+					"Error receiving rules list (%s)\n", 
 					strerror(-rep.error->error));
 				return -1;
 			}
@@ -83,7 +83,7 @@ int delete_all_rules(int fd)
 			if (rep.type != AUDIT_LIST_RULES)
 				continue;
 
-			if (key_match(rep.ruledata))
+			if (key_match(&rep))
 				list_append(&l, rep.ruledata, 
 					sizeof(struct audit_rule_data) +
 					rep.ruledata->buflen);
@@ -96,7 +96,7 @@ int delete_all_rules(int fd)
 		/* Bounce it right back with delete */
 		rc = audit_send(fd, AUDIT_DEL_RULE, n->r, n->size);
 		if (rc < 0) {
-			audit_msg(LOG_ERR, "Error deleting rule (%s)",
+			fprintf(stderr, "Error deleting rule (%s)\n",
 				strerror(-rc)); 
 			return -1;
 		}

@@ -1,20 +1,20 @@
 /* auditd-config.c -- 
- * Copyright 2007,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2007 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * This library is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * Authors:
  *   Steve Grubb <sgrubb@redhat.com>
@@ -52,8 +52,7 @@ struct nv_list
 	int option;
 };
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-	const char *file);
+static char *get_line(FILE *f, char *buf);
 static int nv_split(char *buf, struct _pair *nv);
 static const struct kw_pair *kw_lookup(const char *val);
 static int log_file_parser(const char *val, int line, 
@@ -82,7 +81,7 @@ static const struct nv_list log_formats[] =
 /*
  * Set everything to its default value
 */
-void clear_config(struct daemon_conf *config)
+static void clear_config(struct daemon_conf *config)
 {
 	config->qos = QOS_NON_BLOCKING;
 	config->sender_uid = 0;
@@ -118,7 +117,7 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 	int fd, rc, lineno = 1;
 	struct stat st;
 	FILE *f;
-	char buf[160];
+	char buf[128];
 
 	clear_config(config);
 	lt = lt;
@@ -168,7 +167,7 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 		return 1;
 	}
 
-	while (get_line(f,  buf, sizeof(buf), &lineno, CONFIG_FILE)) {
+	while (get_line(f, buf)) {
 		// convert line into name-value pair
 		const struct kw_pair *kw;
 		struct _pair nv;
@@ -198,9 +197,6 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 		}
 		if (nv.value == NULL) {
 			fclose(f);
-			audit_msg(LOG_ERR,
-				"Not processing any more lines in %s",
-				CONFIG_FILE);
 			return 1;
 		}
 
@@ -222,31 +218,14 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 	return 0;
 }
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-	const char *file)
+static char *get_line(FILE *f, char *buf)
 {
-	int too_long = 0;
-
-	while (fgets_unlocked(buf, size, f)) {
+	if (fgets_unlocked(buf, 128, f)) {
 		/* remove newline */
 		char *ptr = strchr(buf, 0x0a);
-		if (ptr) {
-			if (!too_long) {
-				*ptr = 0;
-				return buf;
-			}
-			// Reset and start with the next line
-			too_long = 0;
-			*lineno = *lineno + 1;
-		} else {
-		// If a line is too long skip it.
-		// Only output 1 warning
-		if (!too_long)
-			audit_msg(LOG_ERR,
-					"Skipping line %d in %s: too long",
-					*lineno, file);
-			too_long = 1;
-		}
+		if (ptr)
+			*ptr = 0;
+		return buf;
 	}
 	return NULL;
 }
@@ -258,7 +237,7 @@ static int nv_split(char *buf, struct _pair *nv)
 
 	nv->name = NULL;
 	nv->value = NULL;
-	ptr = audit_strsplit(buf);
+	ptr = strtok(buf, " ");
 	if (ptr == NULL)
 		return 0; /* If there's nothing, go to next line */
 	if (ptr[0] == '#')
@@ -266,23 +245,23 @@ static int nv_split(char *buf, struct _pair *nv)
 	nv->name = ptr;
 
 	/* Check for a '=' */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	if (strcmp(ptr, "=") != 0)
 		return 2;
 
 	/* get the value */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	nv->value = ptr;
 
 	/* Make sure there's nothing else */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr) {
 		/* Allow one option, but check that there's not 2 */
-		ptr = audit_strsplit(NULL);
+		ptr = strtok(NULL, " ");
 		if (ptr)
 			return 1;
 	}

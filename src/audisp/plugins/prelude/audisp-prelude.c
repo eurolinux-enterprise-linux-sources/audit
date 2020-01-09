@@ -1,5 +1,5 @@
 /* audisp-prelude.c --
- * Copyright 2008-09,2011-12 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2008-09,2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -29,8 +29,6 @@
 #include <ctype.h>
 #include <pwd.h>
 #include <sys/stat.h>
-#include <sys/select.h>
-#include <errno.h>
 #include <libprelude/prelude.h>
 #include <libprelude/idmef-message-print.h>
 #ifdef HAVE_LIBCAP_NG
@@ -250,33 +248,17 @@ int main(int argc, char *argv[])
 	if (mode != M_TEST)
 		syslog(LOG_INFO, "audisp-prelude is ready for events");
 	do {
-		fd_set read_mask;
-		struct timeval tv;
-		int retval;
-
 		/* Load configuration */
 		if (hup) {
 			reload_config();
 		}
-		do {
-			tv.tv_sec = 5;
-			tv.tv_usec = 0;
-			FD_ZERO(&read_mask);
-			FD_SET(0, &read_mask);
-			if (auparse_feed_has_data(au))
-				retval= select(1, &read_mask, NULL, NULL, &tv);
-			else
-				retval= select(1, &read_mask, NULL, NULL, NULL);		} while (retval == -1 && errno == EINTR && !hup && !stop);
 
 		/* Now the event loop */
-		if (!stop && !hup && retval > 0) {
-			if (fgets_unlocked(tmp, MAX_AUDIT_MESSAGE_LENGTH,
-				stdin)){
-				auparse_feed(au, tmp, strnlen(tmp,
+		while (fgets_unlocked(tmp, MAX_AUDIT_MESSAGE_LENGTH, stdin) &&
+							hup==0 && stop==0) {
+			auparse_feed(au, tmp, strnlen(tmp,
 						MAX_AUDIT_MESSAGE_LENGTH));
-			}
-		} else if (retval == 0)
-			auparse_flush_feed(au);
+		}
 		if (feof(stdin))
 			break;
 	} while (stop == 0);
@@ -967,9 +949,7 @@ static int add_execve_data(auparse_state_t *au, idmef_alert_t *alert)
 			int len2;
 			len2 = asprintf(&ptr, "%s=%s ", var,
 					auparse_interpret_field(au));
-			if (len2 < 0) {
-				ptr = NULL;
-			} else if (len2 > 0 && (len2 + len + 1) < sizeof(msg)) {
+			if (len2 > 0 && (len2 + len) < sizeof(msg)) {
 				strcat(msg, ptr);
 				len += len2;
 			}
@@ -2093,7 +2073,7 @@ static int tty_alert(auparse_state_t *au, idmef_message_t *idmef,
 static void handle_event(auparse_state_t *au,
 		auparse_cb_event_t cb_event_type, void *user_data)
 {
-	int type, num=0;
+	int type, rc, num=0;
 	idmef_message_t *idmef;
 	idmef_alert_t *alert;
 
@@ -2105,6 +2085,7 @@ static void handle_event(auparse_state_t *au,
 	// move the cursor accidentally skipping a record.
 	while (auparse_goto_record_num(au, num) > 0) {
 		type = auparse_get_type(au);
+		rc = 0;
 		switch (type) {
 			case AUDIT_AVC:
 //			case AUDIT_USER_AVC: ignore USER_AVC for now

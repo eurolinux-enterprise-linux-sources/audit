@@ -1,5 +1,5 @@
 /* aureport-options.c - parse commandline options and configure aureport
- * Copyright 2005-08,2010-11,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-08,2010-11 Red Hat Inc., Durham, North Carolina.
  * Copyright (c) 2011 IBM Corp.
  * All Rights Reserved.
  *
@@ -39,13 +39,10 @@
 /* Global vars that will be accessed by the main program */
 char *user_file = NULL;
 int force_logs = 0;
-int no_config = 0;
 
 /* These are for compatibility with parser */
 unsigned int event_id = -1;
-uid_t event_uid = -1, event_loginuid = -2, event_euid = -1;
-gid_t event_gid = -1, event_egid = -1;
-slist *event_node_list = NULL;
+const slist *event_node_list = NULL;
 const char *event_key = NULL;
 const char *event_filename = NULL;
 const char *event_exe = NULL;
@@ -56,10 +53,8 @@ const char *event_subject = NULL;
 const char *event_object = NULL;
 const char *event_uuid = NULL;
 const char *event_vmname = NULL;
-long long event_exit = 0;
-int event_exit_is_set = 0;
+int event_exit = 0, event_exit_is_set = 0;
 int event_ppid = -1, event_session_id = -2;
-int event_debug = 0, event_machine = -1;
 
 /* These are used by aureport */
 const char *dummy = "dummy";
@@ -81,7 +76,7 @@ enum {  R_INFILE, R_TIME_END, R_TIME_START, R_VERSION, R_SUMMARY, R_LOG_TIMES,
 	R_AVCS, R_SYSCALLS, R_PIDS, R_EVENTS, R_ACCT_MODS,  
 	R_INTERPRET, R_HELP, R_ANOMALY, R_RESPONSE, R_SUMMARY_DET, R_CRYPTO,
 	R_MAC, R_FAILED, R_SUCCESS, R_ADD, R_DEL, R_AUTH, R_NODE, R_IN_LOGS,
-	R_KEYS, R_TTY, R_NO_CONFIG, R_COMM, R_VIRT, R_INTEG };
+	R_KEYS, R_TTY };
 
 static struct nv_pair optiontab[] = {
 	{ R_AUTH, "-au" },
@@ -90,7 +85,6 @@ static struct nv_pair optiontab[] = {
 	{ R_AVCS, "--avc" },
 	{ R_ADD, "--add" },
 	{ R_CONFIGS, "-c" },
-	{ R_COMM, "--comm" },
 	{ R_CONFIGS, "--config" },
 	{ R_CRYPTO, "-cr" },
 	{ R_CRYPTO, "--crypto" },
@@ -108,7 +102,6 @@ static struct nv_pair optiontab[] = {
 	{ R_INFILE, "-if" },
 	{ R_INFILE, "--input" },
 	{ R_IN_LOGS, "--input-logs" },
-	{ R_INTEG, "--integrity" },
 	{ R_KEYS, "-k" },
 	{ R_KEYS, "--key" },
 	{ R_LOGINS, "-l" },
@@ -118,8 +111,6 @@ static struct nv_pair optiontab[] = {
 	{ R_MAC, "-ma" },
 	{ R_MAC, "--mac" },
 	{ R_NODE, "--node" },
-	{ R_NO_CONFIG, "-nc" },
-	{ R_NO_CONFIG, "--no-config" },
 	{ R_ANOMALY, "-n" },
 	{ R_ANOMALY, "--anomaly" },
 	{ R_PIDS, "-p" },
@@ -144,8 +135,7 @@ static struct nv_pair optiontab[] = {
 	{ R_VERSION, "-v" },
 	{ R_VERSION, "--version" },
 	{ R_EXES, "-x" },
-	{ R_EXES, "--executable" },
-	{ R_VIRT, "--virt" }
+	{ R_EXES, "--executable" }
 };
 #define OPTION_NAMES (sizeof(optiontab)/sizeof(optiontab[0]))
 
@@ -165,7 +155,6 @@ static void usage(void)
 	printf("usage: aureport [options]\n"
 	"\t-a,--avc\t\t\tAvc report\n"
 	"\t-au,--auth\t\t\tAuthentication report\n"
-	"\t--comm\t\t\t\tCommands run report\n"
 	"\t-c,--config\t\t\tConfig change report\n"
 	"\t-cr,--crypto\t\t\tCrypto report\n"
 	"\t-e,--event\t\t\tEvent report\n"
@@ -176,14 +165,12 @@ static void usage(void)
 	"\t-i,--interpret\t\t\tInterpretive mode\n"
 	"\t-if,--input <Input File name>\tuse this file as input\n"
 	"\t--input-logs\t\t\tUse the logs even if stdin is a pipe\n"
-	"\t--integrity\t\t\tIntegrity event report\n"
 	"\t-l,--login\t\t\tLogin report\n"
 	"\t-k,--key\t\t\tKey report\n"
 	"\t-m,--mods\t\t\tModification to accounts report\n"
 	"\t-ma,--mac\t\t\tMandatory Access Control (MAC) report\n"
-	"\t-n,--anomaly\t\t\taNomaly report\n"
-	"\t-nc,--no-config\t\t\tDon't include config events\n"
 	"\t--node <node name>\t\tOnly events from a specific node\n"
+	"\t-n,--anomaly\t\t\taNomaly report\n"
 	"\t-p,--pid\t\t\tPid report\n"
 	"\t-r,--response\t\t\tResponse to anomaly report\n"
 	"\t-s,--syscall\t\t\tSyscall report\n"
@@ -196,7 +183,6 @@ static void usage(void)
 	"\t--tty\t\t\t\tReport about tty keystrokes\n"
 	"\t-u,--user\t\t\tUser name report\n"
 	"\t-v,--version\t\t\tVersion\n"
-	"\t--virt\t\t\t\tVirtualization report\n"
 	"\t-x,--executable\t\t\teXecutable name report\n"
 	"\tIf no report is given, the summary report will be displayed\n"
 	);
@@ -284,47 +270,25 @@ int check_params(int count, char *vars[])
 				event_exe = dummy;
 				event_hostname = dummy;
 				event_terminal = dummy;
-				event_uid = 1;
 			}
 			break;
 		case R_MAC:
 			if (set_report(RPT_MAC))
 				retval = -1;
-			else { 
+			else 
 				set_detail(D_DETAILED);
-				event_loginuid = 1;
-			}
-			break;
-		case R_INTEG:
-			if (set_report(RPT_INTEG))
-				retval = -1;
-			else { 
-				set_detail(D_DETAILED);
-				event_loginuid = 1;
-			}
-			break;
-		case R_VIRT:
-			if (set_report(RPT_VIRT))
-				retval = -1;
-			else { 
-				set_detail(D_DETAILED);
-			}
 			break;
 		case R_CONFIGS:
 			if (set_report(RPT_CONFIG))
 				retval = -1;
-			else { 
+			else 
 				set_detail(D_DETAILED);
-				event_loginuid = 1;
-			}
 			break;
 		case R_CRYPTO:
 			if (set_report(RPT_CRYPTO))
 				retval = -1;
-			else { 
+			else 
 				set_detail(D_DETAILED);
-				event_loginuid = 1;
-			}
 			break;
 		case R_LOGINS:
 			if (set_report(RPT_LOGIN))
@@ -334,7 +298,6 @@ int check_params(int count, char *vars[])
 				event_exe = dummy;
 				event_hostname = dummy;
 				event_terminal = dummy;
-				event_loginuid = 1;
 			}
 			break;
 		case R_ACCT_MODS:
@@ -345,17 +308,15 @@ int check_params(int count, char *vars[])
 				event_exe = dummy;
 				event_hostname = dummy;
 				event_terminal = dummy;
-				event_loginuid = 1;
 			}
 			break;
 		case R_EVENTS:
 			if (set_report(RPT_EVENT))
 				retval = -1;
 			else {
-//				if (!optarg) {
+//				if (!optarg)
 					set_detail(D_DETAILED);
-					event_loginuid = 1;
-//				} else {
+//				else {
 //					UNIMPLEMENTED;
 //					set_detail(D_SPECIFIC);
 //					if (isdigit(optarg[0])) {
@@ -385,7 +346,6 @@ int check_params(int count, char *vars[])
 					set_detail(D_DETAILED);
 					event_filename = dummy;
 					event_exe = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -398,7 +358,6 @@ int check_params(int count, char *vars[])
 				if (!optarg) {
 					set_detail(D_DETAILED);
 					event_hostname = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -420,7 +379,6 @@ int check_params(int count, char *vars[])
 				if (!optarg) {
 					set_detail(D_DETAILED);
 					event_exe = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -433,7 +391,6 @@ int check_params(int count, char *vars[])
 				if (!optarg) {
 					set_detail(D_DETAILED);
 					event_comm = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -448,7 +405,6 @@ int check_params(int count, char *vars[])
 					event_terminal = dummy;
 					event_hostname = dummy;
 					event_exe = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -463,8 +419,6 @@ int check_params(int count, char *vars[])
 					event_terminal = dummy;
 					event_hostname = dummy;
 					event_exe = dummy;
-					event_uid = 1;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -479,22 +433,6 @@ int check_params(int count, char *vars[])
 					event_terminal = dummy;
 					event_hostname = dummy;
 					event_exe = dummy;
-					event_loginuid = 1;
-				} else {
-					UNIMPLEMENTED;
-				}
-			}
-			break;
-		case R_COMM:
-			if (set_report(RPT_COMM))
-				retval = -1;
-			else {
-				if (!optarg) {
-					set_detail(D_DETAILED);
-					event_terminal = dummy;
-					event_hostname = dummy;
-					event_comm = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -510,7 +448,6 @@ int check_params(int count, char *vars[])
 					event_hostname = dummy;
 					event_exe = dummy;
 					event_comm = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -535,7 +472,6 @@ int check_params(int count, char *vars[])
 					set_detail(D_DETAILED);
 					event_exe = dummy;
 					event_key = dummy;
-					event_loginuid = 1;
 				} else {
 					UNIMPLEMENTED;
 				}
@@ -545,11 +481,10 @@ int check_params(int count, char *vars[])
 			if (set_report(RPT_TTY))
 				retval = -1;
 			else {
-				set_detail(D_DETAILED);
 				event_session_id = 1;
-				event_loginuid = 1;
 				event_terminal = dummy;
 				event_comm = dummy;
+				set_detail(D_DETAILED);
 			}
 			break;
 		case R_TIME_END:
@@ -679,9 +614,6 @@ int check_params(int count, char *vars[])
 		case R_IN_LOGS:
 			force_logs = 1;
 			break;
-		case R_NO_CONFIG:
-			no_config = 1;
-			break;
 		case R_VERSION:
 	                printf("aureport version %s\n", VERSION);
 			exit(0);
@@ -709,9 +641,7 @@ int check_params(int count, char *vars[])
 				event_hostname = dummy;
 				event_terminal = dummy;
 				event_exe = dummy;
-				event_comm = dummy;
 				event_key = dummy;
-				event_loginuid = 1;
 			}
 		}
 	} else

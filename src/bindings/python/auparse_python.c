@@ -17,35 +17,6 @@ auparse_timestamp_compare: because AuEvent calls this via the cmp operator
 
 */
 
-#if PY_MAJOR_VERSION > 2
-#define IS_PY3K
-#define MODINITERROR return NULL
-#define PYNUM_FROMLONG PyLong_FromLong
-#define PYSTR_CHECK PyUnicode_Check
-#define PYSTR_FROMSTRING PyUnicode_FromString
-#define PYSTR_ASSTRING PyUnicode_AsUTF8
-#define PYFILE_ASFILE(f) fdopen(PyObject_AsFileDescriptor(f), "r")
-int PyFile_Check(PyObject *f) {
-    PyObject *io, *base;
-    if (!(io = PyImport_ImportModule("io"))) {
-        return 0;
-    } else {
-        if (!(base = PyObject_GetAttrString(io, "TextIOBase"))) {
-            return 0;
-        } else {
-            return PyObject_IsInstance(f, base);
-        }
-    }
-}
-#else
-#define MODINITERROR return
-#define PYNUM_FROMLONG PyInt_FromLong
-#define PYSTR_CHECK PyString_Check
-#define PYSTR_FROMSTRING PyString_FromString
-#define PYSTR_ASSTRING PyString_AsString
-#define PYFILE_ASFILE(f) PyFile_AsFile(f)
-#endif
-
 static int debug = 0;
 static PyObject *NoParserError = NULL;
 
@@ -69,7 +40,7 @@ AuEvent_dealloc(AuEvent* self)
     Py_XDECREF(self->milli);
     Py_XDECREF(self->serial);
     Py_XDECREF(self->host);
-    Py_TYPE(self)->tp_free((PyObject*)self);
+    self->ob_type->tp_free((PyObject*)self);
 }
 
 static int
@@ -85,7 +56,7 @@ static PyObject *
 AuEvent_get_sec(AuEvent *self, void *closure)
 {
     if (self->sec == NULL) {
-        if ((self->sec = PYNUM_FROMLONG(self->event.sec)) == NULL) return NULL;
+        if ((self->sec = PyInt_FromLong(self->event.sec)) == NULL) return NULL;
     }
     Py_INCREF(self->sec);
     return self->sec;
@@ -95,7 +66,7 @@ static PyObject *
 AuEvent_get_milli(AuEvent *self, void *closure)
 {
     if (self->milli == NULL) {
-        if ((self->milli = PYNUM_FROMLONG(self->event.milli)) == NULL) return NULL;
+        if ((self->milli = PyInt_FromLong(self->event.milli)) == NULL) return NULL;
     }
     Py_INCREF(self->milli);
     return self->milli;
@@ -105,7 +76,7 @@ static PyObject *
 AuEvent_get_serial(AuEvent *self, void *closure)
 {
     if (self->serial == NULL) {
-        if ((self->serial = PYNUM_FROMLONG(self->event.serial)) == NULL) return NULL;
+        if ((self->serial = PyInt_FromLong(self->event.serial)) == NULL) return NULL;
     }
     Py_INCREF(self->serial);
     return self->serial;
@@ -118,7 +89,7 @@ AuEvent_get_host(AuEvent *self, void *closure)
         Py_RETURN_NONE;
     } else {
 	if (self->host == NULL) {
-	    if ((self->host = PYSTR_FROMSTRING(self->event.host)) == NULL) return NULL;
+	    if ((self->host = PyString_FromString(self->event.host)) == NULL) return NULL;
 	}
         Py_INCREF(self->host);
         return self->host;
@@ -163,7 +134,7 @@ static PyObject *
 AuEvent_str(PyObject * obj)
 {
     AuEvent *event = (AuEvent *) obj;
-    return PYSTR_FROMSTRING(fmt_event(event->event.sec, event->event.milli, event->event.serial, event->event.host));
+    return PyString_FromString(fmt_event(event->event.sec, event->event.milli, event->event.serial, event->event.host));
 }
 
 
@@ -178,7 +149,8 @@ instantiated from python code, rather it is returned from the\n\
 audit parsing API.");
 
 static PyTypeObject AuEventType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
     "auparse.AuEvent",         /*tp_name*/
     sizeof(AuEvent),           /*tp_basicsize*/
     0,                         /*tp_itemsize*/
@@ -283,7 +255,7 @@ AuParser_dealloc(AuParser* self)
     if (self->au != NULL) {
         auparse_destroy(self->au);
     }
-    Py_TYPE(self)->tp_free((PyObject*)self);
+    self->ob_type->tp_free((PyObject*)self);
 }
 
 static PyObject *
@@ -329,11 +301,11 @@ AuParser_init(AuParser *self, PyObject *args, PyObject *kwds)
     case AUSOURCE_FILE: {
         char *filename = NULL;
 
-        if (!PYSTR_CHECK(source)) {
+        if (!PyString_Check(source)) {
             PyErr_SetString(PyExc_ValueError, "source must be a string when source_type is AUSOURCE_FILE");
             return -1;
         }
-        if ((filename = PYSTR_ASSTRING(source)) == NULL) return -1;
+        if ((filename = PyString_AsString(source)) == NULL) return -1;
         if ((self->au = auparse_init(source_type, filename)) == NULL) {
             PyErr_SetFromErrnoWithFilename(PyExc_IOError, filename);
             return -1;
@@ -352,7 +324,7 @@ AuParser_init(AuParser *self, PyObject *args, PyObject *kwds)
             }
             for (i = 0; i < n; i++) {
                 item = PySequence_GetItem(source, i);
-                if ((files[i] = PYSTR_ASSTRING(item)) == NULL) {
+                if ((files[i] = PyString_AsString(item)) == NULL) {
                     PyErr_SetString(PyExc_ValueError, "members of source sequence must be a string when source_type is AUSOURCE_FILE_ARRAY");
                     Py_DECREF(item);
                     PyMem_Del(files);
@@ -376,7 +348,7 @@ AuParser_init(AuParser *self, PyObject *args, PyObject *kwds)
     } break;
     case AUSOURCE_BUFFER: {
         char *buf;
-        if ((buf = PYSTR_ASSTRING(source)) == NULL) return -1;
+        if ((buf = PyString_AsString(source)) == NULL) return -1;
         if ((self->au = auparse_init(source_type, buf)) == NULL) {
             PyErr_SetFromErrno(PyExc_EnvironmentError);
             return -1;
@@ -395,7 +367,7 @@ AuParser_init(AuParser *self, PyObject *args, PyObject *kwds)
             }
             for (i = 0; i < n; i++) {
                 item = PySequence_GetItem(source, i);
-                if ((buffers[i] = PYSTR_ASSTRING(item)) == NULL) {
+                if ((buffers[i] = PyString_AsString(item)) == NULL) {
                     PyErr_SetString(PyExc_ValueError, "members of source sequence must be a string when source_type is AUSOURCE_BUFFER_ARRAY");
                     Py_DECREF(item);
                     PyMem_Del(buffers);
@@ -432,13 +404,12 @@ AuParser_init(AuParser *self, PyObject *args, PyObject *kwds)
             PyErr_SetString(PyExc_ValueError, "source must be a file object when source_type is AUSOURCE_FILE_POINTER");
             return -1;
         }
-	if ((fp = PYFILE_ASFILE(source)) == NULL) {
+	if ((fp = PyFile_AsFile(source)) == NULL) {
             PyErr_SetString(PyExc_TypeError, "source must be open file when source_type is AUSOURCE_FILE_POINTER");
             return -1;
 	}
         if ((self->au = auparse_init(source_type, fp)) == NULL) {
-            //char *filename = PYSTR_ASSTRING(PyFile_Name(source));
-            char *filename = "TODO";
+            char *filename = PyString_AsString(PyFile_Name(source));
             PyErr_SetFromErrnoWithFilename(PyExc_IOError, filename);
             return -1;
         }
@@ -577,26 +548,6 @@ AuParser_add_callback(AuParser *self, PyObject *args)
 }
 
     Py_RETURN_NONE;
-}
-
-/********************************
- * auparse_set_escape_mode
- ********************************/
-PyDoc_STRVAR(set_escape_mode_doc,
-"set_escape_mode() Set audit parser escaping\n\
-\n\
-This function sets the character escaping applied to value fields in the audit record.\n\
-Returns None.\n\
-");
-static PyObject *
-AuParser_set_escape_mode(PyObject *args)
-{
-    int mode;
-
-    if (!PyArg_ParseTuple(args, "i", &mode)) return NULL;
-    auparse_set_escape_mode(mode);
-
-    return NULL;
 }
 
 /********************************
@@ -862,45 +813,6 @@ AuParser_search_add_timestamp_item(AuParser *self, PyObject *args)
 
     result = ausearch_add_timestamp_item(self->au, op, sec, (unsigned)milli,
 					 how);
-    if (result == 0)
-	    Py_RETURN_NONE;
-    PyErr_SetFromErrno(PyExc_EnvironmentError);
-    return NULL;
-}
-
-/********************************
- * ausearch_add_timestamp_item_ex
- ********************************/
-PyDoc_STRVAR(search_add_timestamp_item_ex_doc,
-"search_add_timestamp_item_ex(op, sec, milli, serial, how) Build up search rule\n\
-search_add_timestamp_item_ex adds an event time condition to the current audit\n\
-search expression. Its similar to search_add_timestamp_item except it adds\n\
-the event serial number.\n\
-");
-
-static PyObject *
-AuParser_search_add_timestamp_item_ex(AuParser *self, PyObject *args)
-{
-    const char *op;
-    PY_LONG_LONG sec;
-    int milli;
-    int serial;
-    int how;
-    int result;
-
-    /* There's no completely portable way to handle time_t values from Python;
-       note that time_t might even be a floating-point type!  PY_LONG_LONG
-       is at least enough not to worry about year 2038.
-
-       milli is int because Python's 'I' format does no overflow checking.
-       Negative milli values will wrap to values > 1000 and
-       ausearch_add_timestamp_item will reject them. */
-    if (!PyArg_ParseTuple(args, "sLiiii", &op, &sec, &milli, &serial, &how))
-	    return NULL;
-    PARSER_CHECK;
-
-    result = ausearch_add_timestamp_item_ex(self->au, op, sec, (unsigned)milli,
-					 (unsigned)serial, how);
     if (result == 0)
 	    Py_RETURN_NONE;
     PyErr_SetFromErrno(PyExc_EnvironmentError);
@@ -1205,27 +1117,6 @@ AuParser_get_type(AuParser *self)
 }
 
 /********************************
- * auparse_get_type_name
- ********************************/
-PyDoc_STRVAR(get_type_name_doc,
-"get_type_name() Get current record’s type name.\n\
-\n\
-get_type_name() allows access to the current record type name in the\n\
-current event.\n\
-\n\
-Returns None if the record type name is unavailable.\n\
-");
-static PyObject *
-AuParser_get_type_name(AuParser *self)
-{
-    const char *name = NULL;
-
-    PARSER_CHECK;
-    name = auparse_get_type_name(self->au);
-    return Py_BuildValue("s", name);
-}
-
-/********************************
  * auparse_get_line_number
  ********************************/
 PyDoc_STRVAR(get_line_number_doc,
@@ -1509,7 +1400,7 @@ AuParser_get_field_int(AuParser *self)
 
 // FIXME: can't tell if interpret is succesful, always returns some string in somewhat arbitrary format.
 PyDoc_STRVAR(interpret_field_doc,
-"interpret_field() Return an interpretation of the current field as a string that has the chosen character escaping applied.\n\
+"interpret_field() Return an interpretation of the current field as a string.\n\
 \n\
 If the field cannot be interpreted the field is returned unmodified.\n\
 Returns None if the field value is unavailable.\n\
@@ -1538,13 +1429,11 @@ static PyMethodDef AuParser_methods[] = {
     {"feed",              (PyCFunction)AuParser_feed,              METH_VARARGS, feed_doc},
     {"flush_feed",        (PyCFunction)AuParser_flush_feed,        METH_NOARGS,  flush_feed_doc},
     {"add_callback",      (PyCFunction)AuParser_add_callback,      METH_VARARGS, add_callback_doc},
-    {"set_escape_mode",   (PyCFunction)AuParser_set_escape_mode,   METH_VARARGS, set_escape_mode_doc},
     {"reset",             (PyCFunction)AuParser_reset,             METH_NOARGS,  reset_doc},
     {"search_add_expression", (PyCFunction)AuParser_search_add_expression, METH_VARARGS, search_add_expression_doc},
     {"search_add_item",   (PyCFunction)AuParser_search_add_item,   METH_VARARGS, search_add_item_doc},
     {"search_add_interpreted_item", (PyCFunction)AuParser_search_add_interpreted_item, METH_VARARGS, search_add_interpreted_item_doc},
     {"search_add_timestamp_item", (PyCFunction)AuParser_search_add_timestamp_item, METH_VARARGS, search_add_timestamp_item_doc},
-    {"search_add_timestamp_item_ex", (PyCFunction)AuParser_search_add_timestamp_item_ex, METH_VARARGS, search_add_timestamp_item_ex_doc},
     {"search_add_regex",  (PyCFunction)AuParser_search_add_regex,  METH_VARARGS, search_add_regex_doc},
     {"search_set_stop",   (PyCFunction)AuParser_search_set_stop,   METH_VARARGS, search_set_stop_doc},
     {"search_clear",      (PyCFunction)AuParser_search_clear,      METH_NOARGS,  search_clear_doc},
@@ -1556,7 +1445,6 @@ static PyMethodDef AuParser_methods[] = {
     {"next_record",       (PyCFunction)AuParser_next_record,       METH_NOARGS,  next_record_doc},
     {"goto_record_num",   (PyCFunction)AuParser_goto_record_num,   METH_VARARGS,  goto_record_num_doc},
     {"get_type",          (PyCFunction)AuParser_get_type,          METH_NOARGS,  get_type_doc},
-    {"get_type_name",     (PyCFunction)AuParser_get_type_name,     METH_NOARGS,  get_type_name_doc},
     {"get_line_number",   (PyCFunction)AuParser_get_line_number,   METH_NOARGS,  get_line_number_doc},
     {"get_filename",      (PyCFunction)AuParser_get_filename,      METH_NOARGS,  get_filename_doc},
     {"first_field",       (PyCFunction)AuParser_first_field,       METH_NOARGS,  first_field_doc},
@@ -1591,7 +1479,8 @@ AUSOURCE_FEED:         None (data supplied via feed()\n\
 ");
 
 static PyTypeObject AuParserType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
     "auparse.AuParser",         /*tp_name*/
     sizeof(AuParser),           /*tp_basicsize*/
     0,                         /*tp_itemsize*/
@@ -1649,39 +1538,18 @@ static PyMethodDef module_methods[] = {
     {NULL}  /* Sentinel */
 };
 
-#ifdef IS_PY3K
-static struct PyModuleDef auparse_def = {
-    PyModuleDef_HEAD_INIT,
-    "auparse",
-    NULL,
-    -1,
-    module_methods,
-    NULL,
-    NULL,
-    NULL,
-    NULL
-};
-
-PyMODINIT_FUNC
-PyInit_auparse(void)
-#else
 PyMODINIT_FUNC
 initauparse(void) 
-#endif
 {
     PyObject* m;
 
-    if (PyType_Ready(&AuEventType) < 0) MODINITERROR;
-    if (PyType_Ready(&AuParserType) < 0) MODINITERROR;
+    if (PyType_Ready(&AuEventType) < 0) return;
+    if (PyType_Ready(&AuParserType) < 0) return;
 
-#ifdef IS_PY3K
-    m = PyModule_Create(&auparse_def);
-#else
     m = Py_InitModule3("auparse", module_methods, auparse_doc);
-#endif
 
     if (m == NULL)
-      MODINITERROR;
+      return;
 
     Py_INCREF(&AuParserType);
     PyModule_AddObject(m, "AuParser", (PyObject *)&AuParserType);
@@ -1709,12 +1577,6 @@ initauparse(void)
     PyModule_AddIntConstant(m, "AUSEARCH_EXISTS",        AUSEARCH_EXISTS);
     PyModule_AddIntConstant(m, "AUSEARCH_EQUAL",         AUSEARCH_EQUAL);
     PyModule_AddIntConstant(m, "AUSEARCH_NOT_EQUAL",     AUSEARCH_NOT_EQUAL);
-    PyModule_AddIntConstant(m, "AUSEARCH_TIME_LT",       AUSEARCH_TIME_LT);
-    PyModule_AddIntConstant(m, "AUSEARCH_TIME_LE",       AUSEARCH_TIME_LE);
-    PyModule_AddIntConstant(m, "AUSEARCH_TIME_GE",       AUSEARCH_TIME_GE);
-    PyModule_AddIntConstant(m, "AUSEARCH_TIME_GT",       AUSEARCH_TIME_GT);
-    PyModule_AddIntConstant(m, "AUSEARCH_TIME_EQ",       AUSEARCH_TIME_EQ);
-    PyModule_AddIntConstant(m, "AUSEARCH_INTERPRETED",   0x40000000);
 
     /* austop_t */
     PyModule_AddIntConstant(m, "AUSEARCH_STOP_EVENT",    AUSEARCH_STOP_EVENT);
@@ -1749,28 +1611,4 @@ initauparse(void)
     PyModule_AddIntConstant(m, "AUPARSE_TYPE_A2",      AUPARSE_TYPE_A2);
     PyModule_AddIntConstant(m, "AUPARSE_TYPE_SIGNAL",  AUPARSE_TYPE_SIGNAL);
     PyModule_AddIntConstant(m, "AUPARSE_TYPE_LIST",    AUPARSE_TYPE_LIST);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_TTY_DATA", AUPARSE_TYPE_TTY_DATA);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_SESSION", AUPARSE_TYPE_SESSION);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_CAP_BITMAP", AUPARSE_TYPE_CAP_BITMAP);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_NFPROTO", AUPARSE_TYPE_NFPROTO);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_ICMPTYPE", AUPARSE_TYPE_ICMPTYPE);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_PROTOCOL", AUPARSE_TYPE_PROTOCOL);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_ADDR", AUPARSE_TYPE_ADDR);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_PERSONALITY", AUPARSE_TYPE_PERSONALITY);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_SECCOMP", AUPARSE_TYPE_SECCOMP);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_OFLAG", AUPARSE_TYPE_OFLAG);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_MMAP", AUPARSE_TYPE_MMAP);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_MODE_SHORT", AUPARSE_TYPE_MODE_SHORT);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_MAC_LABEL", AUPARSE_TYPE_MAC_LABEL);
-    PyModule_AddIntConstant(m, "AUPARSE_TYPE_PROCTITLE", AUPARSE_TYPE_PROCTITLE);
-
-    /* Escape types */
-    PyModule_AddIntConstant(m, "AUPARSE_ESC_RAW", AUPARSE_ESC_RAW);
-    PyModule_AddIntConstant(m, "AUPARSE_ESC_TTY", AUPARSE_ESC_TTY);
-    PyModule_AddIntConstant(m, "AUPARSE_ESC_SHELL", AUPARSE_ESC_SHELL);
-    PyModule_AddIntConstant(m, "AUPARSE_ESC_SHELL_QUOTE", AUPARSE_ESC_SHELL_QUOTE);
-
-#ifdef IS_PY3K
-    return m;
-#endif
 }

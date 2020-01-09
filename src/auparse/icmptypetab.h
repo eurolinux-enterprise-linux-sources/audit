@@ -1,5 +1,6 @@
+
 /* icmptypetab.h --
- * Copyright 2011-13 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -18,7 +19,6 @@
  *
  * Authors:
  *      Steve Grubb <sgrubb@redhat.com>
- * Location: include/uapi/linux/icmp.h
  */
 
 _S(0,	"echo-reply"			)

@@ -1,5 +1,5 @@
 /* auditd.c -- 
- * Copyright 2004-09,2011,2013 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-09,2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -66,9 +66,9 @@ static const char *pidfile = "/var/run/auditd.pid";
 static int init_pipe[2];
 static int do_fork = 1;
 static struct auditd_reply_list *rep = NULL;
-static int hup_info_requested = 0;
-static int usr1_info_requested = 0, usr2_info_requested = 0;
+static int hup_info_requested = 0, usr1_info_requested = 0;
 static char subj[SUBJ_LEN];
+static struct ev_periodic periodic_watcher;
 
 /* Local function prototypes */
 int send_audit_event(int type, const char *str);
@@ -148,15 +148,9 @@ static void user1_handler(struct ev_loop *loop, struct ev_signal *sig,
  */
 static void user2_handler( struct ev_loop *loop, struct ev_signal *sig, int revents )
 {
-	int rc;
-
-	rc = audit_request_signal_info(fd);
-	if (rc < 0) {
-		resume_logging();
-		send_audit_event(AUDIT_DAEMON_RESUME, 
+	resume_logging();
+	send_audit_event(AUDIT_DAEMON_RESUME, 
 			 "auditd resuming logging, sending auid=? pid=? subj=? res=success");
-	} else
-		usr2_info_requested = 1;
 }
 
 /*
@@ -165,12 +159,8 @@ static void user2_handler( struct ev_loop *loop, struct ev_signal *sig, int reve
 static void child_handler(struct ev_loop *loop, struct ev_signal *sig,
 			int revents)
 {
-	int pid;
-
-	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-		if (pid == dispatcher_pid())
-			dispatcher_reaped();
-	}
+	while (waitpid(-1, NULL, WNOHANG) > 0)
+		; /* empty */
 }
 
 static void distribute_event(struct auditd_reply_list *rep)
@@ -267,40 +257,29 @@ static int write_pid_file(void)
 		pidfile = 0;
 		return 1;
 	}
-	if (write(pidfd, val, (unsigned int)len) != len) {
-		audit_msg(LOG_ERR, "Unable to write pidfile (%s)",
-			strerror(errno));
-		close(pidfd);
-		pidfile = 0;
-		return 1;
-	}
+	(void)write(pidfd, val, (unsigned int)len);
 	close(pidfd);
 	return 0;
 }
 
 static void avoid_oom_killer(void)
 {
-	int oomfd, len, rc;
-	char *score = NULL;
+	int oomfd;
 
 	/* New kernels use different technique */	
-	if ((oomfd = open("/proc/self/oom_score_adj",
-				O_NOFOLLOW | O_WRONLY)) >= 0) {
-		score = "-1000";
-	} else if ((oomfd = open("/proc/self/oom_adj",
-				O_NOFOLLOW | O_WRONLY)) >= 0) {
-		score = "-17";
-	} else {
-		audit_msg(LOG_NOTICE, "Cannot open out of memory adjuster");
+	oomfd = open("/proc/self/oom_score_adj", O_NOFOLLOW | O_WRONLY);
+	if (oomfd >= 0) {
+		(void)write(oomfd, "-1000", 5);
+		close(oomfd);
 		return;
 	}
-
-	len = strlen(score);
-	rc = write(oomfd, score, len);
-	if (rc != len)
-		audit_msg(LOG_NOTICE, "Unable to adjust out of memory score");
-
-	close(oomfd);
+	oomfd = open("/proc/self/oom_adj", O_NOFOLLOW | O_WRONLY);
+	if (oomfd >= 0) {
+		(void)write(oomfd, "-17", 3);
+		close(oomfd);
+		return;
+	}
+	// Old style kernel...perform another action here
 }
 
 /*
@@ -344,18 +323,12 @@ static int become_daemon(void)
 							(dup2(fd, 2) < 0)) {
 				audit_msg(LOG_ERR,
 				    "Cannot reassign descriptors to /dev/null");
-				close(fd);
 				return -1;
 			}
 			close(fd);
 
 			/* Change to '/' */
-			rc = chdir("/");
-			if (rc < 0) {
-				audit_msg(LOG_ERR,
-					"Cannot change working directory to /");
-				return -1;
-			}
+			chdir("/");
 
 			/* Become session/process group leader */
 			setsid();
@@ -439,38 +412,21 @@ static void netlink_handler(struct ev_loop *loop, struct ev_io *io,
 				}
 				rep = NULL;
 				hup_info_requested = 0;
-			} else if (usr1_info_requested) {
+			} else if(usr1_info_requested){
 				char usr1[MAX_AUDIT_MESSAGE_LENGTH];
 				if (rep->reply.len == 24) {
-					snprintf(usr1, sizeof(usr1),
+					snprintf(usr1, 
+						 sizeof(usr1),
 					 "auditd sending auid=? pid=? subj=?");
 				} else {
-					snprintf(usr1, sizeof(usr1),
+					snprintf(usr1, 
+						 sizeof(usr1),
 				 "auditd sending auid=%u pid=%d subj=%s",
 						 rep->reply.signal_info->uid, 
 						 rep->reply.signal_info->pid,
 						 rep->reply.signal_info->ctx);
 				}
 				send_audit_event(AUDIT_DAEMON_ROTATE, usr1);
-				usr1_info_requested = 0;
-			} else if (usr2_info_requested) {
-				char usr2[MAX_AUDIT_MESSAGE_LENGTH];
-				if (rep->reply.len == 24) {
-					snprintf(usr2, sizeof(usr2), 
-						"auditd resuming logging, "
-						"sending auid=? pid=? subj=? "
-						"res=success");
-				} else {
-					snprintf(usr2, sizeof(usr2),
-						"auditd resuming logging, "
-				  "sending auid=%u pid=%d subj=%s res=success",
-						 rep->reply.signal_info->uid, 
-						 rep->reply.signal_info->pid,
-						 rep->reply.signal_info->ctx);
-				}
-				resume_logging();
-				send_audit_event(AUDIT_DAEMON_RESUME, usr2); 
-				usr2_info_requested = 0;
 			}
 			break;
 		default:
@@ -485,13 +441,33 @@ static void netlink_handler(struct ev_loop *loop, struct ev_io *io,
 	}
 }
 
+static void periodic_handler(struct ev_loop *loop, struct ev_periodic *per,
+			int revents )
+{
+	if (config.tcp_client_max_idle)
+		auditd_tcp_listen_check_idle (loop);
+}
+
+void periodic_reconfigure(void)
+{
+	struct ev_loop *loop = ev_default_loop (EVFLAG_AUTO);
+	if (config.tcp_client_max_idle) {
+		ev_periodic_set (&periodic_watcher, ev_now (loop),
+				 config.tcp_client_max_idle, NULL);
+		ev_periodic_start (loop, &periodic_watcher);
+	} else {
+		ev_periodic_stop (loop, &periodic_watcher);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	struct sigaction sa;
 	struct rlimit limit;
-	int i, c, rc;
+	int i;
 	int opt_foreground = 0, opt_allow_links = 0;
 	enum startup_state opt_startup = startup_enable;
+	int c;
 	extern char *optarg;
 	extern int optind;
 	struct ev_loop *loop;
@@ -501,6 +477,7 @@ int main(int argc, char *argv[])
 	struct ev_signal sigusr1_watcher;
 	struct ev_signal sigusr2_watcher;
 	struct ev_signal sigchld_watcher;
+	int rc;
 
 	/* Get params && set mode */
 	while ((c = getopt(argc, argv, "flns:")) != -1) {
@@ -581,8 +558,8 @@ int main(int argc, char *argv[])
 
 	if (config.priority_boost != 0) {
 		errno = 0;
-		rc = nice((int)-config.priority_boost);
-		if (rc == -1 && errno) {
+		(void) nice((int)-config.priority_boost);
+		if (errno) {
 			audit_msg(LOG_ERR, "Cannot change priority (%s)", 
 					strerror(errno));
 			return 1;
@@ -672,6 +649,29 @@ int main(int argc, char *argv[])
 	/* let config manager init */
 	init_config_manager();
 
+	/* Tell the kernel we are alive */
+	if (audit_set_pid(fd, getpid(), WAIT_YES) < 0) {
+		char emsg[DEFAULT_BUF_SZ];
+		if (*subj)
+			snprintf(emsg, sizeof(emsg),
+			"auditd error halt, auid=%u pid=%d subj=%s res=failed",
+				audit_getloginuid(), getpid(), subj);
+		else
+			snprintf(emsg, sizeof(emsg),
+				"auditd error halt, auid=%u pid=%d res=failed",
+				audit_getloginuid(), getpid());
+		stop = 1;
+		send_audit_event(AUDIT_DAEMON_ABORT, emsg);
+		audit_msg(LOG_ERR, "Unable to set audit pid, exiting");
+		close_down();
+		if (pidfile)
+			unlink(pidfile);
+		shutdown_dispatcher();
+		tell_parent(FAILURE);
+		return 1;
+	}
+
+	/* Depending on value of opt_startup (-s) set initial audit state */
 	if (opt_startup != startup_nochange && (audit_is_enabled(fd) < 2) &&
 	    audit_set_enabled(fd, (int)opt_startup) < 0) {
 		char emsg[DEFAULT_BUF_SZ];
@@ -696,29 +696,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	/* Tell the kernel we are alive */
-	if (audit_set_pid(fd, getpid(), WAIT_YES) < 0) {
-		char emsg[DEFAULT_BUF_SZ];
-		if (*subj)
-			snprintf(emsg, sizeof(emsg),
-			"auditd error halt, auid=%u pid=%d subj=%s res=failed",
-				audit_getloginuid(), getpid(), subj);
-		else
-			snprintf(emsg, sizeof(emsg),
-				"auditd error halt, auid=%u pid=%d res=failed",
-				audit_getloginuid(), getpid());
-		stop = 1;
-		send_audit_event(AUDIT_DAEMON_ABORT, emsg);
-		audit_msg(LOG_ERR, "Unable to set audit pid, exiting");
-		close_down();
-		if (pidfile)
-			unlink(pidfile);
-		shutdown_dispatcher();
-		tell_parent(FAILURE);
-		return 1;
-	}
-
-	/* Depending on value of opt_startup (-s) set initial audit state */
 	loop = ev_default_loop (EVFLAG_NOENV);
 
 	ev_io_init (&netlink_watcher, netlink_handler, fd, EV_READ);
@@ -738,6 +715,11 @@ int main(int argc, char *argv[])
 
 	ev_signal_init (&sigchld_watcher, child_handler, SIGCHLD);
 	ev_signal_start (loop, &sigchld_watcher);
+
+	ev_periodic_init (&periodic_watcher, periodic_handler,
+			  0, config.tcp_client_max_idle, NULL);
+	if (config.tcp_client_max_idle)
+		ev_periodic_start (loop, &periodic_watcher);
 
 	if (auditd_tcp_listen_init (loop, &config)) {
 		char emsg[DEFAULT_BUF_SZ];
@@ -769,13 +751,15 @@ int main(int argc, char *argv[])
 	if (!stop)
 		ev_loop (loop, 0);
 
-	auditd_tcp_listen_uninit (loop, &config);
+	auditd_tcp_listen_uninit (loop);
 
 	// Tear down IO watchers Part 1
 	ev_signal_stop (loop, &sighup_watcher);
 	ev_signal_stop (loop, &sigusr1_watcher);
 	ev_signal_stop (loop, &sigusr2_watcher);
 	ev_signal_stop (loop, &sigterm_watcher);
+	if (config.tcp_client_max_idle)
+		ev_periodic_stop (loop, &periodic_watcher);
 
 	/* Write message to log that we are going down */
 	rc = audit_request_signal_info(fd);

@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <ctype.h>
 #include <locale.h>
 #include <string.h>
 #include <regex.h>
@@ -138,15 +137,17 @@ void event_free(struct event *event)
 	}
 }
 
-#define copy_str( str ) (str) ? strdup(str) : NULL
-
+inline char *copy_str(const char *str)
+{
+	return (str) ? strdup(str) : NULL;
+}
 
 void usage(FILE *output)
 {
 	fprintf(output, "usage: auvirt [--stdin] [--all-events] [--summary] "
 			"[--start start-date [start-time]] "
 			"[--end end-date [end-time]] [--file file-name] "
-			"[--show-uuid] [--proof] "
+			"[--show--uuid] [--proof] "
 			"[--uuid uuid] [--vm vm-name]\n");
 }
 
@@ -648,7 +649,7 @@ int process_control_event(auparse_state_t *au)
 	return 0;
 }
 
-static int is_resource(const char *res)
+inline int is_resource(const char *res)
 {
 	if (res == NULL ||
 	    res[0] == '\0' ||
@@ -685,8 +686,7 @@ int add_resource(auparse_state_t *au, const char *uuid, uid_t uid, time_t time,
 		if (event->cgroup_class) {
 			const char *detail = NULL;
 			if (strcmp("path", event->cgroup_class) == 0) {
-				if (auparse_find_field(au, "path"))
-					detail = auparse_interpret_field(au);
+				detail = auparse_find_field(au, "path");
 			} else if (strcmp("major", event->cgroup_class) == 0) {
 				detail = auparse_find_field(au, "category");
 			}
@@ -726,7 +726,7 @@ int update_resource(auparse_state_t *au, const char *uuid, uid_t uid,
 	if (it == NULL) {
 		if (debug) {
 			fprintf(stderr, "Couldn't find the correlated resource"
-					" record to update for %s.\n", res_type);
+					" record to update.\n");
 		}
 		return 0;
 	}
@@ -768,7 +768,6 @@ int process_resource_event(auparse_state_t *au)
 	if (strcmp("disk", res_type) == 0 ||
 	    strcmp("vcpu", res_type) == 0 ||
 	    strcmp("mem", res_type) == 0 ||
-	    strcmp("rng", res_type) == 0 ||
 	    strcmp("net", res_type) == 0) {
 		const char *res = NULL;
 		/* Resource removed */
@@ -1199,7 +1198,7 @@ int process_anom(auparse_state_t *au)
 
 		for (it = events->tail; it; it = it->next) {
 			struct event *event = it->data;
-			if (event->success && machine_id->uuid && event->uuid &&
+			if (event->success &&
 			    strcmp(machine_id->uuid, event->uuid) == 0) {
 				if (event->type == ET_STOP) {
 					break;
@@ -1313,7 +1312,7 @@ const char *get_rec_type(struct event *e)
 const char *get_username(struct event *e)
 {
 	static char s[256];
-	if (!e || (int)e->uid == -1) {
+	if (!e || e->uid < 0) {
 		s[0] = '?';
 		s[1] = '\0';
 	} else {

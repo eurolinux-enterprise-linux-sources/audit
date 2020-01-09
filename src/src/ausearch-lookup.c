@@ -1,6 +1,6 @@
 /*
 * ausearch-lookup.c - Lookup values to something more readable
-* Copyright (c) 2005-06,2011-12,2015 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-06,2011 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
 * This software may be freely redistributed and/or modified under the
@@ -43,8 +43,6 @@ static int machine = 0;
 static const char *Q = "?";
 static const char *results[3]= { "unset", "denied", "granted" };
 static const char *success[3]= { "unset", "no", "yes" };
-static const char *aulookup_socketcall(long sc);
-static const char *aulookup_ipccall(long ic);
 
 const char *aulookup_result(avc_t result)
 {
@@ -118,12 +116,11 @@ static struct nv_pair socktab[] = {
 	{SYS_SENDMSG, "sendmsg"},
 	{SYS_RECVMSG, "recvmsg"},
 	{SYS_ACCEPT4, "accept4"},
-	{19, "recvmmsg"},
-	{20, "sendmmsg"}
+	{SYS_RECVMMSG, "recvmmsg"}
 };
 #define SOCK_NAMES (sizeof(socktab)/sizeof(socktab[0]))
 
-static const char *aulookup_socketcall(long sc)
+const char *aulookup_socketcall(long sc)
 {
         int i;
 
@@ -139,7 +136,6 @@ static const char *aulookup_socketcall(long sc)
 #define SEMOP            1
 #define SEMGET           2
 #define SEMCTL           3
-#define SEMTIMEDOP	 4
 #define MSGSND          11
 #define MSGRCV          12
 #define MSGGET          13
@@ -156,7 +152,6 @@ static struct nv_pair ipctab[] = {
         {SEMOP, "semop"},
         {SEMGET, "semget"},
         {SEMCTL, "semctl"},
-        {SEMTIMEDOP, "semtimedop"},
         {MSGSND, "msgsnd"},
         {MSGRCV, "msgrcv"},
         {MSGGET, "msgget"},
@@ -168,7 +163,7 @@ static struct nv_pair ipctab[] = {
 };
 #define IPC_NAMES (sizeof(ipctab)/sizeof(ipctab[0]))
 
-static const char *aulookup_ipccall(long ic)
+const char *aulookup_ipccall(long ic)
 {
         int i;
 
@@ -177,7 +172,7 @@ static const char *aulookup_ipccall(long ic)
                         return ipctab[i].name;
 
         return NULL;
-} 
+}
 
 static nvlist uid_nvl;
 static int uid_list_created=0;
@@ -317,11 +312,10 @@ static unsigned char x2c(unsigned char *buf)
 }
 
 /* returns a freshly malloc'ed and converted buffer */
-char *unescape(const char *buf)
+char *unescape(char *buf)
 {
 	int len, i;
-	char *str, *strptr;
-	const char *ptr = buf;
+	char saved, *ptr = buf, *str;
 
 	/* Find the end of the name */
 	if (*ptr == '(') {
@@ -334,7 +328,10 @@ char *unescape(const char *buf)
 		while (isxdigit(*ptr))
 			ptr++;
 	}
-	str = strndup(buf, ptr - buf);
+	saved = *ptr;
+	*ptr = 0;
+	str = strdup(buf);
+	*ptr = saved;
 
 	if (*buf == '(')
 		return str;
@@ -347,56 +344,13 @@ char *unescape(const char *buf)
 		free(str);
 		return NULL;
 	}
-	strptr = str;
+	ptr = str;
 	for (i=0; i<len; i+=2) {
-		*strptr = x2c((unsigned char *)&str[i]);
-		strptr++;
+		*ptr = x2c((unsigned char *)&str[i]);
+		ptr++;
 	}
-	*strptr = 0;
+	*ptr = 0;
 	return str;
-}
-
-int need_sanitize(const unsigned char *s, unsigned int len)
-{
-	unsigned int i = 0;
-	while (i < len) {
-		if (s[i] < 32)
-			return 1;
-		i++;
-	}
-	return 0;
-}
-
-void sanitize(const char *s, unsigned int len)
-{
-	unsigned int i = 0;
-	while (i < len) {
-		if ((unsigned char)s[i] < 32) {
-			putchar('\\');
-			putchar('0' + ((s[i] & 0300) >> 6));
-			putchar('0' + ((s[i] & 0070) >> 3));
-			putchar('0' + (s[i] & 0007));
-		} else
-			putchar(s[i]);
-		i++;
-	}
-}
-
-void safe_print_string_n(const char *s, unsigned int len, int ret)
-{
-	if (need_sanitize(s, len)) {
-		sanitize(s, len);
-		if (ret)
-			putchar('\n');
-	} else if (ret)
-		puts(s);
-	else
-		printf("%s", s);
-}
-
-void safe_print_string(const char *s, int ret)
-{
-	safe_print_string_n(s, strlen(s), ret);
 }
 
 /* Represent c as a character within a quoted string, and append it to buf. */

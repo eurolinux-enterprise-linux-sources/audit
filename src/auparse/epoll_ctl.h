@@ -1,5 +1,6 @@
+
 /* epoll_ctl.h --
- * Copyright 2008,2012,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2008 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -18,7 +19,6 @@
  *
  * Authors:
  *      Steve Grubb <sgrubb@redhat.com>
- * Location: include/uapi/linux/eventpoll.h
  */
 
 _S(1,		"EPOLL_CTL_ADD" )

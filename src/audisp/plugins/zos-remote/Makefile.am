@@ -1,6 +1,5 @@
 # Makefile.am--
-# Copyright (C) 2007,2008 International Business Machines  Corp.
-# Copyright (C) 2011, 2015 Red Hat., Durham, North Carolina.
+# Copyright (C) 2007,2008,2011 International Business Machines  Corp.
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -21,7 +20,7 @@
 #   Klaus Heinrich Kiwi <klausk@br.ibm.com>
 #
 
-AM_CPPFLAGS = -I${top_srcdir} -I${top_srcdir}/lib -I${top_srcdir}/auparse
+INCLUDES = -I${top_srcdir} -I${top_srcdir}/lib -I${top_srcdir}/auparse
 CONFIG_CLEAN_FILES = *.rej *.orig
 AUTOMAKE_OPTIONS = no-dependencies
 EXTRA_DIST = zos-remote.conf audispd-zos-remote.conf
@@ -38,7 +37,7 @@ noinst_HEADERS = zos-remote-log.h zos-remote-ldap.h zos-remote-config.h \
 audispd_zos_remote_SOURCES = zos-remote-plugin.c zos-remote-log.c \
 	zos-remote-ldap.c zos-remote-config.c zos-remote-queue.c
 audispd_zos_remote_CFLAGS = -W -Wall -Wundef -D_GNU_SOURCE -fPIE -DPIE
-audispd_zos_remote_LDFLAGS = -pie -Wl,-z,relro -Wl,-z,now
+audispd_zos_remote_LDFLAGS = -pie -Wl,-z,relro
 
 install-data-hook:
 	mkdir -p -m 0750 ${DESTDIR}${plugin_confdir}

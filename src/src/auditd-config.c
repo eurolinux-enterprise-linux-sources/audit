@@ -1,5 +1,5 @@
 /* auditd-config.c -- 
- * Copyright 2004-2011,2013-14 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -62,8 +62,7 @@ struct nv_list
 	int option;
 };
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-		const char *file);
+static char *get_line(FILE *f, char *buf);
 static int nv_split(char *buf, struct nv_pair *nv);
 static const struct kw_pair *kw_lookup(const char *val);
 static int log_file_parser(struct nv_pair *nv, int line, 
@@ -180,7 +179,6 @@ static const struct nv_list failure_actions[] =
 {
   {"ignore",  FA_IGNORE },
   {"syslog",  FA_SYSLOG },
-  {"rotate",  FA_ROTATE },
   {"email",   FA_EMAIL },
   {"exec",    FA_EXEC },
   {"suspend", FA_SUSPEND },
@@ -236,7 +234,7 @@ void set_allow_links(int allow)
 /*
  * Set everything to its default value
 */
-void clear_config(struct daemon_conf *config)
+static void clear_config(struct daemon_conf *config)
 {
 	config->qos = QOS_NON_BLOCKING;
 	config->sender_uid = 0;
@@ -283,7 +281,7 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 	int fd, rc, mode, lineno = 1;
 	struct stat st;
 	FILE *f;
-	char buf[160];
+	char buf[128];
 
 	clear_config(config);
 	log_test = lt;
@@ -344,7 +342,7 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 		return 1;
 	}
 
-	while (get_line(f, buf, sizeof(buf), &lineno, CONFIG_FILE)) {
+	while (get_line(f, buf)) {
 		// convert line into name-value pair
 		const struct kw_pair *kw;
 		struct nv_pair nv;
@@ -374,9 +372,6 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 		}
 		if (nv.value == NULL) {
 			fclose(f);
-			audit_msg(LOG_ERR,
-				"Not processing any more lines in %s",
-				CONFIG_FILE);
 			return 1;
 		}
 
@@ -416,31 +411,14 @@ int load_config(struct daemon_conf *config, log_test_t lt)
 	return 0;
 }
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-	const char *file)
+static char *get_line(FILE *f, char *buf)
 {
-	int too_long = 0;
-
-	while (fgets_unlocked(buf, size, f)) {
+	if (fgets_unlocked(buf, 128, f)) {
 		/* remove newline */
 		char *ptr = strchr(buf, 0x0a);
-		if (ptr) {
-			if (!too_long) {
-				*ptr = 0;
-				return buf;
-			}
-			// Reset and start with the next line
-			too_long = 0;
-			*lineno = *lineno + 1;
-		} else {
-			// If a line is too long skip it.
-			// Only output 1 warning
-			if (!too_long)
-				audit_msg(LOG_ERR,
-					"Skipping line %d in %s: too long",
-					*lineno, file);
-			too_long = 1;
-		}
+		if (ptr)
+			*ptr = 0;
+		return buf;
 	}
 	return NULL;
 }
@@ -453,7 +431,7 @@ static int nv_split(char *buf, struct nv_pair *nv)
 	nv->name = NULL;
 	nv->value = NULL;
 	nv->option = NULL;
-	ptr = audit_strsplit(buf);
+	ptr = strtok(buf, " ");
 	if (ptr == NULL)
 		return 0; /* If there's nothing, go to next line */
 	if (ptr[0] == '#')
@@ -461,25 +439,25 @@ static int nv_split(char *buf, struct nv_pair *nv)
 	nv->name = ptr;
 
 	/* Check for a '=' */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	if (strcmp(ptr, "=") != 0)
 		return 2;
 
 	/* get the value */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	nv->value = ptr;
 
 	/* See if there's an option */
-	ptr = audit_strsplit(NULL);
+	ptr = strtok(NULL, " ");
 	if (ptr) {
 		nv->option = ptr;
 
 		/* Make sure there's nothing else */
-		ptr = audit_strsplit(NULL);
+		ptr = strtok(NULL, " ");
 		if (ptr)
 			return 1;
 	}
@@ -983,32 +961,25 @@ static int space_action_parser(struct nv_pair *nv, int line,
 	return 1;
 }
 
-// returns 0 if OK, 1 on temp error, 2 on permanent error
-static int validate_email(const char *acct)
+// returns 1 on error & 0 if OK
+int validate_email(const char *acct)
 {
 	int i, len;
 	char *ptr1;
 
 	if (acct == NULL)
-		return 2;
+		return 1;
 
 	len = strlen(acct);
-	if (len < 2) {
-		audit_msg(LOG_ERR,
-		    "email: %s is too short, expecting at least 2 characters",
-			 acct);
-		return 2;
-	}
+	if (len < 2)
+		return 1;
 
 	// look for illegal char
 	for (i=0; i<len; i++) {
 		if (! (isalnum(acct[i]) || (acct[i] == '@') ||
 				(acct[i]=='.') || (acct[i]=='-') ||
-				(acct[i] == '_')) ) {
-			audit_msg(LOG_ERR, "email: %s has illegal character",
-				acct);
-			return 2;
-		}
+				(acct[i] == '_')) )
+			return 1;
 	}
 
 	if ((ptr1 = strchr(acct, '@'))) {
@@ -1016,29 +987,16 @@ static int validate_email(const char *acct)
 		struct hostent *t_addr;
 
 		ptr2 = strrchr(acct, '.');        // get last dot - sb after @
-		if ((ptr2 == NULL) || (ptr1 > ptr2)) {
-			audit_msg(LOG_ERR, "email: %s should have . after @",
-				acct);
-			return 2;
-		}
+		if ((ptr2 == NULL) || (ptr1 > ptr2))
+			return 1;
 
 		t_addr = gethostbyname(ptr1+1);
 		if (t_addr == 0) {
 			if ((h_errno == HOST_NOT_FOUND) ||
-					(h_errno == NO_RECOVERY)) {
-					audit_msg(LOG_ERR,
-				"validate_email: failed looking up host for %s",
-					ptr1+1);
-				// FIXME: gethostbyname is having trouble
-				// telling when we have a temporary vs permanent
-				// dns failure. So, for now, treat all as temp
+					(h_errno == NO_RECOVERY))
 				return 1;
-			}
 			else if (h_errno == TRY_AGAIN)
-				audit_msg(LOG_DEBUG,
-		"validate_email: temporary failure looking up domain for %s",
-					ptr1+1);
-				return 1;
+				return 2;
 		}
 	}
 	return 0;
@@ -1055,7 +1013,7 @@ static int action_mail_acct_parser(struct nv_pair *nv, int line,
 	if (tmail == NULL)
 		return 1;
 
-	if (validate_email(tmail) > 1) {
+	if (validate_email(tmail)) {
 		free(tmail);
 		return 1;
 	}
@@ -1165,8 +1123,7 @@ static int disk_error_action_parser(struct nv_pair *nv, int line,
 								nv->value);
 	for (i=0; failure_actions[i].name != NULL; i++) {
 		if (strcasecmp(nv->value, failure_actions[i].name) == 0) {
-			if (failure_actions[i].option == FA_EMAIL ||
-				failure_actions[i].option == FA_ROTATE) {
+			if (failure_actions[i].option == FA_EMAIL) {
 				audit_msg(LOG_ERR, 
 			"Illegal option %s for disk_error_action - line %d",
 					nv->value, line);
@@ -1232,12 +1189,6 @@ static int tcp_listen_port_parser(struct nv_pair *nv, int line,
 	audit_msg(LOG_DEBUG, "tcp_listen_port_parser called with: %s",
 		  nv->value);
 
-#ifndef USE_LISTENER
-	audit_msg(LOG_DEBUG,
-		"Listener support is not enabled, ignoring value at line %d",
-		line);
-	return 0;
-#else
 	/* check that all chars are numbers */
 	for (i=0; ptr[i]; i++) {
 		if (!isdigit(ptr[i])) {
@@ -1272,7 +1223,6 @@ static int tcp_listen_port_parser(struct nv_pair *nv, int line,
 	}
 	config->tcp_listen_port = (unsigned int)i;
 	return 0;
-#endif
 }
 
 static int tcp_listen_queue_parser(struct nv_pair *nv, int line,
@@ -1284,12 +1234,6 @@ static int tcp_listen_queue_parser(struct nv_pair *nv, int line,
 	audit_msg(LOG_DEBUG, "tcp_listen_queue_parser called with: %s",
 		  nv->value);
 
-#ifndef USE_LISTENER
-	audit_msg(LOG_DEBUG,
-		"Listener support is not enabled, ignoring value at line %d",
-		line);
-	return 0;
-#else
 	/* check that all chars are numbers */
 	for (i=0; ptr[i]; i++) {
 		if (!isdigit(ptr[i])) {
@@ -1326,7 +1270,6 @@ static int tcp_listen_queue_parser(struct nv_pair *nv, int line,
 	}
 	config->tcp_listen_queue = (unsigned int)i;
 	return 0;
-#endif
 }
 
 
@@ -1339,12 +1282,6 @@ static int tcp_max_per_addr_parser(struct nv_pair *nv, int line,
 	audit_msg(LOG_DEBUG, "tcp_max_per_addr_parser called with: %s",
 		  nv->value);
 
-#ifndef USE_LISTENER
-	audit_msg(LOG_DEBUG,
-		"Listener support is not enabled, ignoring value at line %d",
-		line);
-	return 0;
-#else
 	/* check that all chars are numbers */
 	for (i=0; ptr[i]; i++) {
 		if (!isdigit(ptr[i])) {
@@ -1381,7 +1318,6 @@ static int tcp_max_per_addr_parser(struct nv_pair *nv, int line,
 	}
 	config->tcp_max_per_addr = (unsigned int)i;
 	return 0;
-#endif
 }
 
 static int use_libwrap_parser(struct nv_pair *nv, int line,
@@ -1412,12 +1348,6 @@ static int tcp_client_ports_parser(struct nv_pair *nv, int line,
 	audit_msg(LOG_DEBUG, "tcp_listen_queue_parser called with: %s",
 		  nv->value);
 
-#ifndef USE_LISTENER
-	audit_msg(LOG_DEBUG,
-		"Listener support is not enabled, ignoring value at line %d",
-		line);
-	return 0;
-#else
 	/* check that all chars are numbers, with an optional inclusive '-'. */
 	for (i=0; ptr[i]; i++) {
 		if (i > 0 && ptr[i] == '-' && ptr[i+1] != '\0') {
@@ -1482,7 +1412,6 @@ static int tcp_client_ports_parser(struct nv_pair *nv, int line,
 	config->tcp_client_min_port = (unsigned int)minv;
 	config->tcp_client_max_port = (unsigned int)maxv;
 	return 0;
-#endif
 }
 
 static int tcp_client_max_idle_parser(struct nv_pair *nv, int line,
@@ -1494,12 +1423,6 @@ static int tcp_client_max_idle_parser(struct nv_pair *nv, int line,
 	audit_msg(LOG_DEBUG, "tcp_client_max_idle_parser called with: %s",
 		  nv->value);
 
-#ifndef USE_LISTENER
-	audit_msg(LOG_DEBUG,
-		"Listener support is not enabled, ignoring value at line %d",
-		line);
-	return 0;
-#else
 	/* check that all chars are numbers */
 	for (i=0; ptr[i]; i++) {
 		if (!isdigit(ptr[i])) {
@@ -1530,7 +1453,6 @@ static int tcp_client_max_idle_parser(struct nv_pair *nv, int line,
 	}
 	config->tcp_client_max_idle = (unsigned int)i;
 	return 0;
-#endif
 }
 
 static int enable_krb5_parser(struct nv_pair *nv, int line,

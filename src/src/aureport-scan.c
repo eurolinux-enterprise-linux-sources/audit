@@ -1,6 +1,6 @@
 /*
 * aureport-scan.c - Extract interesting fields and check for match
-* Copyright (c) 2005-06,2008,2011,2014-15 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-06, 2008, 2011 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
 * This software may be freely redistributed and/or modified under the
@@ -54,14 +54,11 @@ void reset_counters(void)
 	sd.failed_syscalls = 0UL;
 	sd.anomalies = 0UL;
 	sd.responses = 0UL;
-	sd.virt = 0UL;
-	sd.integ = 0UL;
 	slist_create(&sd.users);
 	slist_create(&sd.terms);
 	slist_create(&sd.files);
 	slist_create(&sd.hosts);
 	slist_create(&sd.exes);
-	slist_create(&sd.comms);
 	slist_create(&sd.avc_objs);
 	slist_create(&sd.keys);
 	ilist_create(&sd.pids);
@@ -70,8 +67,6 @@ void reset_counters(void)
 	ilist_create(&sd.mac_list);
 	ilist_create(&sd.resp_list);
 	ilist_create(&sd.crypto_list);
-	ilist_create(&sd.virt_list);
-	ilist_create(&sd.integ_list);
 }
 
 /* This function inits the counters */
@@ -90,14 +85,11 @@ void destroy_counters(void)
 	sd.failed_syscalls = 0UL;
 	sd.anomalies = 0UL;
 	sd.responses = 0UL;
-	sd.virt = 0UL;
-	sd.integ = 0UL;
 	slist_clear(&sd.users);
 	slist_clear(&sd.terms);
 	slist_clear(&sd.files);
 	slist_clear(&sd.hosts);
 	slist_clear(&sd.exes);
-	slist_clear(&sd.comms);
 	slist_clear(&sd.avc_objs);
 	slist_clear(&sd.keys);
 	ilist_clear(&sd.pids);
@@ -106,8 +98,6 @@ void destroy_counters(void)
 	ilist_create(&sd.mac_list);
 	ilist_clear(&sd.resp_list);
 	ilist_create(&sd.crypto_list);
-	ilist_create(&sd.virt_list);
-	ilist_create(&sd.integ_list);
 }
 
 /* This function will return 0 on no match and 1 on match */
@@ -128,14 +118,10 @@ int classify_success(const llist *l)
 int classify_conf(const llist *l)
 {
 	int rc = 1;
-	extern int no_config;
 
 	switch (l->head->type)
 	{
 		case AUDIT_CONFIG_CHANGE:
-			if (no_config)
-				rc = 0;
-			break;
 		case AUDIT_USYS_CONFIG:
 			break;
 		case AUDIT_ADD_USER:
@@ -307,38 +293,12 @@ static int per_event_summary(llist *l)
 				}
 			}
 			break;
-		case RPT_INTEG:
-			if (list_find_msg_range(l, 
-				AUDIT_INTEGRITY_FIRST_MSG,
-					AUDIT_INTEGRITY_LAST_MSG)) {
-				ilist_add_if_uniq(&sd.integ_list, 
-						l->head->type, 0);
-			}
-			break;
-		case RPT_VIRT:
-			if (list_find_msg_range(l, 
-				AUDIT_FIRST_VIRT_MSG,
-					AUDIT_LAST_VIRT_MSG)) {
-				ilist_add_if_uniq(&sd.virt_list, 
-						l->head->type, 0);
-			}
-			break;
-		case RPT_CONFIG: /* We will borrow the pid list */
-			if (list_find_msg(l, AUDIT_CONFIG_CHANGE) ||
-				list_find_msg(l, AUDIT_DAEMON_CONFIG) ||
-				list_find_msg(l, AUDIT_USYS_CONFIG) ||
-				list_find_msg(l, AUDIT_NETFILTER_CFG) ||
-				list_find_msg(l, AUDIT_FEATURE_CHANGE) ||
-				list_find_msg(l, AUDIT_USER_MAC_CONFIG_CHANGE)||
-				list_find_msg_range(l,
-					AUDIT_MAC_POLICY_LOAD,
-					AUDIT_MAC_UNLBL_STCDEL)) {
-				ilist_add_if_uniq(&sd.pids, l->head->type, 0);
-			}
+		case RPT_CONFIG:
+			UNIMPLEMENTED;
 			break;
 		case RPT_AUTH:
 			if (list_find_msg(l, AUDIT_USER_AUTH)) {
-				if (l->s.loginuid == -2 && l->s.acct)
+				if (l->s.loginuid == -2 && l->s.acct != NULL)
 					slist_add_if_uniq(&sd.users, l->s.acct);
 				else {
 					char name[64];
@@ -349,7 +309,7 @@ static int per_event_summary(llist *l)
 							sizeof(name))
 						);
 				}
-			} else if (list_find_msg(l, AUDIT_USER_MGMT)) {
+			} else if (list_find_msg(l, AUDIT_USER_ACCT)) {
 				// Only count the failures
 				if (l->s.success == S_FAILED) {
 					if (l->s.loginuid == -2 && 
@@ -370,7 +330,7 @@ static int per_event_summary(llist *l)
 			break;
 		case RPT_LOGIN:
 			if (list_find_msg(l, AUDIT_USER_LOGIN)) {
-				if ((int)l->s.loginuid < 0 && l->s.acct)
+				if (l->s.loginuid == -2 && l->s.acct != NULL)
 					slist_add_if_uniq(&sd.users, l->s.acct);
 				else {
 					char name[64];
@@ -383,17 +343,8 @@ static int per_event_summary(llist *l)
 				}
 			}
 			break;
-		case RPT_ACCT_MOD: /* We will borrow the pid list */
-			if (list_find_msg(l, AUDIT_USER_CHAUTHTOK) || 
-				list_find_msg_range(l,
-					AUDIT_ADD_USER, AUDIT_DEL_GROUP) ||
-				list_find_msg(l, AUDIT_USER_MGMT) ||
-				list_find_msg(l, AUDIT_GRP_MGMT) ||
-				list_find_msg_range(l,
-					AUDIT_ROLE_ASSIGN,
-					AUDIT_ROLE_REMOVE)) {
-				ilist_add_if_uniq(&sd.pids, l->head->type, 0);
-			}
+		case RPT_ACCT_MOD:
+			UNIMPLEMENTED;
 			break;
 		case RPT_EVENT: /* We will borrow the pid list */
 			if (l->head->type != -1) {
@@ -444,10 +395,6 @@ static int per_event_summary(llist *l)
 		case RPT_EXE:
 			if (l->s.exe)
 				slist_add_if_uniq(&sd.exes, l->s.exe);
-			break;
-		case RPT_COMM:
-			if (l->s.comm)
-				slist_add_if_uniq(&sd.comms, l->s.comm);
 			break;
 		case RPT_ANOMALY:
 			if (list_find_msg_range(l, AUDIT_FIRST_ANOM_MSG,
@@ -541,26 +488,6 @@ static int per_event_detailed(llist *l)
 				}
 			}
 			break;
-		case RPT_INTEG:
-			if (report_detail == D_DETAILED) {
-				if (list_find_msg_range(l, 
-					AUDIT_INTEGRITY_FIRST_MSG,
-					AUDIT_INTEGRITY_LAST_MSG)) {
-					print_per_event_item(l);
-					rc = 1;
-				}
-			}
-			break;
-		case RPT_VIRT:
-			if (report_detail == D_DETAILED) {
-				if (list_find_msg_range(l, 
-					AUDIT_FIRST_VIRT_MSG,
-					AUDIT_LAST_VIRT_MSG)) {
-					print_per_event_item(l);
-					rc = 1;
-				}
-			}
-			break;
 		case RPT_CONFIG:
 			if (list_find_msg(l, AUDIT_CONFIG_CHANGE)) {
 				print_per_event_item(l);
@@ -569,16 +496,6 @@ static int per_event_detailed(llist *l)
 				print_per_event_item(l);
 				rc = 1;
 			} else if (list_find_msg(l, AUDIT_USYS_CONFIG)) {
-				print_per_event_item(l);
-				rc = 1;
-			} else if (list_find_msg(l, AUDIT_NETFILTER_CFG)) {
-				print_per_event_item(l);
-				rc = 1;
-			} else if (list_find_msg(l, AUDIT_FEATURE_CHANGE)) {
-				print_per_event_item(l);
-				rc = 1;
-			} else if (list_find_msg(l,
-					AUDIT_USER_MAC_CONFIG_CHANGE)) {
 				print_per_event_item(l);
 				rc = 1;
 			} else if (list_find_msg_range(l,
@@ -592,7 +509,7 @@ static int per_event_detailed(llist *l)
 			if (list_find_msg(l, AUDIT_USER_AUTH)) {
 				print_per_event_item(l);
 				rc = 1;
-			} else if (list_find_msg(l, AUDIT_USER_MGMT)) {
+			} else if (list_find_msg(l, AUDIT_USER_ACCT)) {
 				// Only count the failed acct
 				if (l->s.success == S_FAILED) {
 					print_per_event_item(l);
@@ -614,10 +531,7 @@ static int per_event_detailed(llist *l)
 					AUDIT_ADD_USER, AUDIT_DEL_GROUP)) {
 				print_per_event_item(l);
 				rc = 1;
-			} else if (list_find_msg(l, AUDIT_USER_MGMT)) {
-				print_per_event_item(l);
-				rc = 1;
-			} else if (list_find_msg(l, AUDIT_GRP_MGMT)) {
+			} else if (list_find_msg(l, AUDIT_CHGRP_ID)) {
 				print_per_event_item(l);
 				rc = 1;
 			} else if (list_find_msg_range(l,
@@ -713,17 +627,6 @@ static int per_event_detailed(llist *l)
 				UNIMPLEMENTED;
 			}
 			break;
-		case RPT_COMM:
-			list_first(l);
-			if (report_detail == D_DETAILED) {
-				if (l->s.comm) {
-					print_per_event_item(l);
-					rc = 1;
-				}
-			} else { //  specific exe report
-				UNIMPLEMENTED;
-			}
-			break;
 		case RPT_ANOMALY:
 			if (report_detail == D_DETAILED) {
 				if (list_find_msg_range(l, 
@@ -790,8 +693,7 @@ static int per_event_detailed(llist *l)
 			}
 			break;
 		case RPT_TTY:
-			if (l->head->type == AUDIT_TTY ||
-					l->head->type == AUDIT_USER_TTY) {
+			if (l->head->type == AUDIT_TTY) {
 				print_per_event_item(l);
 				rc = 1;
 			}
@@ -814,12 +716,6 @@ static void do_summary_total(llist *l)
 		sd.changes++;
 	if (list_find_msg(l, AUDIT_USYS_CONFIG)) 
 		sd.changes++;
-	if (list_find_msg(l, AUDIT_NETFILTER_CFG)) 
-		sd.changes++;
-	if (list_find_msg(l, AUDIT_FEATURE_CHANGE)) 
-		sd.changes++;
-	if (list_find_msg(l, AUDIT_USER_MAC_CONFIG_CHANGE)) 
-		sd.changes++;
 	list_first(l);
 	if (list_find_msg_range(l, AUDIT_MAC_POLICY_LOAD,
 					AUDIT_MAC_UNLBL_STCDEL))
@@ -830,9 +726,7 @@ static void do_summary_total(llist *l)
 		sd.acct_changes++;
 	if (list_find_msg_range(l, AUDIT_ADD_USER, AUDIT_DEL_GROUP))
 		sd.acct_changes++;
-	if (list_find_msg(l, AUDIT_USER_MGMT))
-		sd.acct_changes++;
-	if (list_find_msg(l, AUDIT_GRP_MGMT))
+	if (list_find_msg(l, AUDIT_CHGRP_ID))
 		sd.acct_changes++;
 	list_first(l);
 	if (list_find_msg_range(l, AUDIT_ROLE_ASSIGN, AUDIT_ROLE_REMOVE))
@@ -861,7 +755,7 @@ static void do_summary_total(llist *l)
 			sd.good_auth++;
 		else if (l->s.success == S_FAILED)
 			sd.bad_auth++;
-	} else if (list_find_msg(l, AUDIT_USER_MGMT)) {
+	} else if (list_find_msg(l, AUDIT_USER_ACCT)) {
 		// Only count the failures
 		if (l->s.success == S_FAILED)
 			sd.bad_auth++;
@@ -891,10 +785,6 @@ static void do_summary_total(llist *l)
 	if (l->s.exe)
 		slist_add_if_uniq(&sd.exes, l->s.exe);
 
-	// add comms
-	if (l->s.comm)
-		slist_add_if_uniq(&sd.comms, l->s.comm);
-
 	// add files
 	if (l->s.filename) {
 		const snode *sn;
@@ -923,18 +813,6 @@ static void do_summary_total(llist *l)
 	if (list_find_msg_range(l, AUDIT_FIRST_USER_LSPP_MSG, 
 					AUDIT_LAST_USER_LSPP_MSG))
 		sd.mac++;
-
-	// Virt
-	list_first(l);
-	if (list_find_msg_range(l, AUDIT_FIRST_VIRT_MSG, 
-					AUDIT_LAST_VIRT_MSG))
-		sd.virt++;
-
-	// Integrity 
-	list_first(l);
-	if (list_find_msg_range(l, AUDIT_INTEGRITY_FIRST_MSG, 
-					AUDIT_INTEGRITY_LAST_MSG))
-		sd.integ++;
 
 	// add failed syscalls
 	if (l->s.success == S_FAILED && l->s.syscall > 0)

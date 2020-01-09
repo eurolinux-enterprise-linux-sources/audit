@@ -1,6 +1,6 @@
 /*
 * ausearch-llist.h - Header file for ausearch-llist.c
-* Copyright (c) 2005-2008, 2013-14 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-2008 Red Hat Inc., Durham, North Carolina.
 * Copyright (c) 2011 IBM Corp.
 * All Rights Reserved.
 *
@@ -54,8 +54,8 @@ typedef struct
   success_t success;    // success flag, 1 = yes, 0 = no, -1 = unset
   int arch;             // arch
   int syscall;          // syscall
-  uint32_t session_id;  // Login session id
-  long long exit;       // Syscall exit code
+  int session_id;       // Login session id
+  int exit;             // Syscall exit code
   int exit_is_set;      // Syscall exit code is valid
   char *hostname;       // remote hostname
   slist *filename;      // filename list
@@ -74,10 +74,8 @@ typedef struct
  *  record goes here. */
 typedef struct _lnode{
   char *message;		// The whole unparsed message
-  unsigned mlen;                // Length of the message
   int type;             	// message type (KERNEL, USER, LOGIN, etc)
   unsigned long long a0;	// argv 0
-  unsigned long long a1;	// argv 1
   unsigned int item;		// Which item of the same event
   struct _lnode* next;		// Next node pointer
 } lnode;

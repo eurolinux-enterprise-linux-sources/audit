@@ -381,12 +381,12 @@ static char *get_line(FILE *f, char *buf)
 static int nv_split(char *buf, struct nv_pair *nv)
 {
 	/* Get the name part */
-	char *ptr, *saved;
+	char *ptr;
 
 	nv->name = NULL;
 	nv->value = NULL;
 	nv->option = NULL;
-	ptr = strtok_r(buf, " ", &saved);
+	ptr = strtok(buf, " ");
 	if (ptr == NULL)
 		return 0; /* If there's nothing, go to next line */
 	if (ptr[0] == '#')
@@ -394,14 +394,14 @@ static int nv_split(char *buf, struct nv_pair *nv)
 	nv->name = ptr;
 
 	/* Check for a '=' */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	if (strcmp(ptr, "=") != 0)
 		return 2;
 
 	/* get the value */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	nv->value = ptr;

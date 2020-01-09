@@ -32,7 +32,6 @@ struct msg_tab {
     const char	*cvalue;
 };
 
-#ifndef NO_TABLES
 static const struct msg_tab err_msgtab[] = {
     { -1,    2,    "-F missing operation for" },
     { -2,    2,    "-F unknown field:" },
@@ -56,11 +55,9 @@ static const struct msg_tab err_msgtab[] = {
     { -20,    2,    "-F missing value after operation for" },
     { -21,    2,    "-F value should be number for" },
     { -22,    2,    "-F missing field name before operator for" },
-    { -23,    2,    "" }, // Unused
+    { -23,    2,    "-C missng operation for "},
     { -24,    2,    "-C missing field name before operator for" },
     { -25,    2,    "-C missing value after operation for "},
     { -26,    2,    "-C unknown field:" },
     { -27,    2,    "-C unknown right hand value for comparison with:" },
-    { -28,    2,    "Too many fields in rule" },
 };
-#endif

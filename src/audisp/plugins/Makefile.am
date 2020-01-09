@@ -22,10 +22,8 @@
 
 CONFIG_CLEAN_FILES = *.loT *.rej *.orig
 
-SUBDIRS = builtins remote
-if ENABLE_ZOS_REMOTE
-SUBDIRS += zos-remote
-endif
+SUBDIRS = builtins zos-remote remote
+#SUBDIRS = builtins zos-remote
 if HAVE_PRELUDE
 SUBDIRS += prelude
 endif

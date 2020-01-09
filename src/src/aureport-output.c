@@ -1,6 +1,6 @@
 /*
 * aureport-output.c - Print the report
-* Copyright (c) 2005-06,2008,2014 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-06, 2008 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
 * This software may be freely redistributed and/or modified under the
@@ -80,27 +80,12 @@ static void print_title_summary(void)
 			break;
 		case RPT_MAC:
 			printf("MAC Summary Report\n");
-			printf("==================\n");
+			printf("======================\n");
 			printf("total  type\n");
-			printf("==================\n");
-			break;
-		case RPT_INTEG:
-			printf("Integrity Summary Report\n");
-			printf("========================\n");
-			printf("total  type\n");
-			printf("========================\n");
-			break;
-		case RPT_VIRT:
-			printf("Virtualization Summary Report\n");
-			printf("=============================\n");
-			printf("total  type\n");
-			printf("=============================\n");
+			printf("======================\n");
 			break;
 		case RPT_CONFIG:
-			printf("Config Change Summary Report\n");
-			printf("============================\n");
-			printf("total  type\n");
-			printf("============================\n");
+			UNIMPLEMENTED;
 			break;
 		case RPT_AUTH:
 			printf("Authentication Summary Report\n");
@@ -115,10 +100,7 @@ static void print_title_summary(void)
 			printf("============================\n");
 			break;
 		case RPT_ACCT_MOD:
-			printf("Acct Modification Summary Report\n");
-			printf("================================\n");
-			printf("total  type\n");
-			printf("================================\n");
+			UNIMPLEMENTED;
 			break;
 		case RPT_TIME:
 			UNIMPLEMENTED;
@@ -171,12 +153,6 @@ static void print_title_summary(void)
 			printf("total  file\n");
 			printf("=================================\n");
 			break;
-		case RPT_COMM:
-			printf("Command Summary Report\n");
-			printf("=================================\n");
-			printf("total  command\n");
-			printf("=================================\n");
-			break;
 		case RPT_ANOMALY:
 			printf("Anomaly Summary Report\n");
 			printf("======================\n");
@@ -191,9 +167,9 @@ static void print_title_summary(void)
 			break;
 		case RPT_CRYPTO:
 			printf("Crypto Summary Report\n");
-			printf("=====================\n");
+			printf("======================\n");
 			printf("total  type\n");
-			printf("=====================\n");
+			printf("======================\n");
 			break;
 		case RPT_KEY:
 			printf("Key Summary Report\n");
@@ -365,20 +341,6 @@ static void print_title_detailed(void)
 				printf("==========================\n");
 			}
 			break;
-		case RPT_COMM:
-			if (report_detail == D_DETAILED) {
-				printf("Command Report\n");
-				printf(
-				  "====================================\n");
-				printf(
-				  "# date time comm term host auid event\n");
-				printf(
-				  "=====================================\n");
-			} else {
-				printf("Specific command Report\n");
-				printf("=======================\n");
-			}
-			break;
 		case RPT_ANOMALY:
 			if (report_detail == D_DETAILED) {
 				printf("Anomaly Report\n");
@@ -413,28 +375,6 @@ static void print_title_detailed(void)
 			} else {
 				printf("Specific Mandatory Access Control (MAC) Report\n");
 				printf("===================================\n");
-			}
-			break;
-		case RPT_INTEG:
-			if (report_detail == D_DETAILED) {
-				printf("Integrity Report\n");
-				printf("==============================\n");
-				printf("# date time type success event\n");
-				printf("==============================\n");
-			} else {
-				printf("Specific Integrity Report\n");
-				printf("==============================\n");
-			}
-			break;
-		case RPT_VIRT:
-			if (report_detail == D_DETAILED) {
-				printf("Virtualization Report\n");
-				printf("==============================\n");
-				printf("# date time type success event\n");
-				printf("==============================\n");
-			} else {
-				printf("Specific Virtualization Report\n");
-				printf("==============================\n");
 			}
 			break;
 		case RPT_CRYPTO:
@@ -505,8 +445,8 @@ void print_per_event_item(llist *l)
 				line_item++;
 				printf("%u. %s ", line_item, date);
 		// command subject syscall action obj res event
-			safe_print_string(l->s.comm ? l->s.comm : "?", 0);
-			printf(" %s %s %s %s %s %s %lu\n", 
+			printf("%s %s %s %s %s %s %s %lu\n", 
+				l->s.comm ? l->s.comm : "?",
 				an->scontext, 
 				aulookup_syscall(l, buf,sizeof(buf)),
 				an->avc_class, an->avc_perm,
@@ -528,9 +468,9 @@ void print_per_event_item(llist *l)
 			// Special note...uid is used here because that is
 			// the way that the message works. This is because
 			// on failed logins, loginuid is not set.
-			safe_print_string(l->s.acct ? l->s.acct :
-				aulookup_uid(l->s.uid, name, sizeof(name)), 0);
-			printf(" %s %s %s %s %lu\n",
+			printf("%s %s %s %s %s %lu\n",
+				l->s.acct ? l->s.acct :
+				aulookup_uid(l->s.uid, name, sizeof(name)),
 				l->s.hostname, l->s.terminal,
 				l->s.exe, aulookup_success(l->s.success),
 				l->e.serial);
@@ -540,20 +480,18 @@ void print_per_event_item(llist *l)
 			// Special note...uid is used here because that is
 			// the way that the message works. This is because
 			// on failed logins, loginuid is not set.
-			safe_print_string(((l->s.success == S_FAILED) &&
-				l->s.acct) ? l->s.acct :
-				aulookup_uid(l->s.uid, name, sizeof(name)), 0);
-			printf(" %s %s %s %s %lu\n", 
+			printf("%s %s %s %s %s %lu\n", 
+				((l->s.success == S_FAILED) && l->s.acct) ?
+				l->s.acct :
+				aulookup_uid(l->s.uid, name, sizeof(name)),
 				l->s.hostname, l->s.terminal,
 				l->s.exe, aulookup_success(l->s.success),
 				l->e.serial);
 			break;
 		case RPT_ACCT_MOD:
 			// who, addr, terminal, exe, success, event
-			safe_print_string(
-				aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %s %s %s %s %s %lu\n",
+			printf("%s %s %s %s %s %s %lu\n",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
 				l->s.hostname ? l->s.hostname : "?",
 				l->s.terminal ? l->s.terminal : "?",
 				l->s.exe ? l->s.exe : "?",
@@ -563,105 +501,85 @@ void print_per_event_item(llist *l)
 			break;
 		case RPT_EVENT:	// report_detail == D_DETAILED
 			//        event, type, who, success
-			printf("%lu %s ",
+			printf("%lu %s %s %s\n",
 				l->e.serial,
-				audit_msg_type_to_name(l->head->type));
-			safe_print_string(aulookup_uid(l->s.loginuid, name, 
-					sizeof(name)), 0);
-			printf(" %s\n",	aulookup_success(l->s.success));
+				audit_msg_type_to_name(l->head->type),
+				aulookup_uid(l->s.loginuid, name, 
+					sizeof(name)),
+					aulookup_success(l->s.success));
 			break;
 		case RPT_FILE:	// report_detail == D_DETAILED
 			// file, syscall, success, exe, who, event
 			slist_first(l->s.filename);
-			safe_print_string(l->s.filename->cur->str,0);
-			printf(" %s %s ",
+			printf("%s %s %s %s %s %lu\n",
+				l->s.filename->cur->str,
 				aulookup_syscall(l,buf,sizeof(buf)),
-				aulookup_success(l->s.success));
-			safe_print_string(l->s.exe ? l->s.exe : "?", 0);
-			putchar(' ');
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+				aulookup_success(l->s.success),
+				l->s.exe ? l->s.exe : "?",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_HOST:	// report_detail == D_DETAILED
 			// host, syscall, who, event
-			printf("%s %s ",
+			printf("%s %s %s %lu\n",
 				l->s.hostname,
-				aulookup_syscall(l,buf,sizeof(buf)));
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+				aulookup_syscall(l,buf,sizeof(buf)),
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_PID:	// report_detail == D_DETAILED
 			// pid, exe, syscall, who, event
-			printf("%u ", l->s.pid);
-			safe_print_string(l->s.exe ? l->s.exe : "?", 0);
-			printf(" %s ", aulookup_syscall(l,buf,sizeof(buf)));
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-				sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+			printf("%u %s %s %s %lu\n",
+				l->s.pid,
+				l->s.exe ? l->s.exe : "?",
+				aulookup_syscall(l,buf,sizeof(buf)),
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_SYSCALL:	// report_detail == D_DETAILED
 			// syscall, pid, comm, who, event
-			printf("%s %u ", aulookup_syscall(l,buf,sizeof(buf)),
-				l->s.pid);
-			safe_print_string(l->s.comm ? l->s.comm : "?", 0);
-			putchar(' ');
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-				sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+			printf("%s %u %s %s %lu\n", 
+				aulookup_syscall(l,buf,sizeof(buf)),
+				l->s.pid,
+				l->s.comm ? l->s.comm : "?",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_TERM:	// report_detail == D_DETAILED
 			// terminal, host, exe, who, event
-			printf("%s %s ",
-				l->s.terminal, l->s.hostname);
-			safe_print_string(l->s.exe, 0);
-			putchar(' ');
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-				sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+			printf("%s %s %s %s %lu\n",
+				l->s.terminal, l->s.hostname,
+				l->s.exe,
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_USER:	// report_detail == D_DETAILED
 			// who, terminal, host, exe, event
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %s %s ",
+			printf("%s %s %s %s %lu\n",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
 				l->s.terminal ? l->s.terminal : "?",
-				l->s.hostname ? l->s.hostname : "?");
-			safe_print_string(l->s.exe ? l->s.exe : "?", 0);
-			printf(" %lu\n", l->e.serial);
+				l->s.hostname ? l->s.hostname : "?",
+				l->s.exe ? l->s.exe : "?",
+				l->e.serial);
 			break;
 		case RPT_EXE:	// report_detail == D_DETAILED
 			// exe, terminal, host, who, event
-			safe_print_string(l->s.exe ? l->s.exe : "?", 0);
-			printf(" %s %s ",
+			printf("%s %s %s %s %lu\n",
+				l->s.exe ? l->s.exe : "?", 
 				l->s.terminal ? l->s.terminal : "?",
-				l->s.hostname ? l->s.hostname : "?");
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
-			break;
-		case RPT_COMM:	// report_detail == D_DETAILED
-			// comm, terminal, host, who, event
-			safe_print_string(l->s.comm ? l->s.comm : "?", 0);
-			printf(" %s %s ",
-				l->s.terminal ? l->s.terminal : "?",
-				l->s.hostname ? l->s.hostname : "?");
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+				l->s.hostname ? l->s.hostname : "?",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_ANOMALY:	// report_detail == D_DETAILED
 			// type exe term host auid event
-			printf("%s ", audit_msg_type_to_name(l->head->type));
-			safe_print_string(l->s.exe ? l->s.exe :
-					l->s.comm ? l->s.comm: "?", 0);
-			printf(" %s %s ",
+			printf("%s %s %s %s %s %lu\n",
+				audit_msg_type_to_name(l->head->type),
+				l->s.exe ? l->s.exe : l->s.comm ? l->s.comm: "?", 
 				l->s.terminal ? l->s.terminal : "?",
-				l->s.hostname ? l->s.hostname : "?");
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+				l->s.hostname ? l->s.hostname : "?",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_RESPONSE:	// report_detail == D_DETAILED
 			// type success event
@@ -678,25 +596,10 @@ void print_per_event_item(llist *l)
 				aulookup_success(l->s.success),
 				l->e.serial);
 			break;
-		case RPT_INTEG:
-			// type success event
-			printf("%s %s %lu\n",
-				audit_msg_type_to_name(l->head->type),
-				aulookup_success(l->s.success),
-				l->e.serial);
-			break;
-		case RPT_VIRT:
-			// type success event
-			printf("%s %s %lu\n",
-				audit_msg_type_to_name(l->head->type),
-				aulookup_success(l->s.success),
-				l->e.serial);
-			break;
 		case RPT_CRYPTO:
 			// auid type success event
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %s %s %lu\n",
+			printf("%s %s %s %lu\n",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
 				audit_msg_type_to_name(l->head->type),
 				aulookup_success(l->s.success),
 				l->e.serial);
@@ -704,13 +607,12 @@ void print_per_event_item(llist *l)
 		case RPT_KEY:	// report_detail == D_DETAILED
 			// key, success, exe, who, event
 			slist_first(l->s.key);
-			printf("%s %s ", l->s.key->cur->str,
-				aulookup_success(l->s.success));
-			safe_print_string(l->s.exe ? l->s.exe : "?", 0);
-			putchar(' ');
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %lu\n", l->e.serial);
+			printf("%s %s %s %s %lu\n",
+				l->s.key->cur->str,
+				aulookup_success(l->s.success),
+				l->s.exe ? l->s.exe : "?",
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
+				l->e.serial);
 			break;
 		case RPT_TTY: {
 			char *ch, *ptr = strstr(l->head->message, "data=");
@@ -721,14 +623,12 @@ void print_per_event_item(llist *l)
 			if (ch)
 				*ch = 0;
 			// event who term sess data
-			printf("%lu ", l->e.serial);
-			safe_print_string(aulookup_uid(l->s.loginuid, name,
-					sizeof(name)), 0);
-			printf(" %s %u ",
+			printf("%lu %s %s %u %s ",
+				l->e.serial,
+				aulookup_uid(l->s.loginuid, name, sizeof(name)),
 				l->s.terminal ? l->s.terminal : "?",
-				l->s.session_id);
-			safe_print_string(l->s.comm ? l->s.comm: "?", 0);
-			putchar(' ');
+				l->s.session_id,
+				l->s.comm ? l->s.comm: "?");
 			print_tty_data(ptr);
 			printf("\n");
 			}
@@ -752,9 +652,7 @@ void print_wrap_up(void)
 			slist_sort_by_hits(&sd.avc_objs);
 			do_string_summary_output(&sd.avc_objs);
 			break;
-		case RPT_CONFIG: /* We will borrow the pid list */
-			ilist_sort_by_hits(&sd.pids);
-			do_type_summary_output(&sd.pids);
+		case RPT_CONFIG:
 			break;
 		case RPT_AUTH:
 			slist_sort_by_hits(&sd.users);
@@ -764,9 +662,7 @@ void print_wrap_up(void)
 			slist_sort_by_hits(&sd.users);
 			do_user_summary_output(&sd.users);
 			break;
-		case RPT_ACCT_MOD: /* We will borrow the pid list */
-			ilist_sort_by_hits(&sd.pids);
-			do_type_summary_output(&sd.pids);
+		case RPT_ACCT_MOD:
 			break;
 		case RPT_EVENT: /* We will borrow the pid list */
 			ilist_sort_by_hits(&sd.pids);
@@ -800,10 +696,6 @@ void print_wrap_up(void)
 			slist_sort_by_hits(&sd.exes);
 			do_file_summary_output(&sd.exes);
 			break;
-		case RPT_COMM:
-			slist_sort_by_hits(&sd.comms);
-			do_file_summary_output(&sd.comms);
-			break;
 		case RPT_ANOMALY:
 			ilist_sort_by_hits(&sd.anom_list);
 			do_type_summary_output(&sd.anom_list);
@@ -815,14 +707,6 @@ void print_wrap_up(void)
 		case RPT_MAC:
 			ilist_sort_by_hits(&sd.mac_list);
 			do_type_summary_output(&sd.mac_list);
-			break;
-		case RPT_INTEG:
-			ilist_sort_by_hits(&sd.integ_list);
-			do_type_summary_output(&sd.integ_list);
-			break;
-		case RPT_VIRT:
-			ilist_sort_by_hits(&sd.virt_list);
-			do_type_summary_output(&sd.virt_list);
 			break;
 		case RPT_CRYPTO:
 			ilist_sort_by_hits(&sd.crypto_list);
@@ -886,7 +770,6 @@ static void do_summary_output(void)
 	printf("Number of terminals: %u\n", sd.terms.cnt);
 	printf("Number of host names: %u\n", sd.hosts.cnt);
 	printf("Number of executables: %u\n", sd.exes.cnt);
-	printf("Number of commands: %u\n", sd.comms.cnt);
 	printf("Number of files: %u\n", sd.files.cnt);
 	printf("Number of AVC's: %lu\n", sd.avcs);
 	printf("Number of MAC events: %lu\n", sd.mac);
@@ -894,8 +777,6 @@ static void do_summary_output(void)
 	printf("Number of anomaly events: %lu\n", sd.anomalies);
 	printf("Number of responses to anomaly events: %lu\n", sd.responses);
 	printf("Number of crypto events: %lu\n", sd.crypto);
-	printf("Number of integrity events: %lu\n", sd.integ);
-	printf("Number of virt events: %lu\n", sd.virt);
 	printf("Number of keys: %u\n", sd.keys.cnt);
 	printf("Number of process IDs: %u\n", sd.pids.cnt);
 	printf("Number of events: %lu\n", sd.events);
@@ -913,8 +794,7 @@ static void do_file_summary_output(slist *sptr)
 	slist_first(sptr);
 	sn=slist_get_cur(sptr);
 	while (sn) {
-		printf("%u  ", sn->hits);
-		safe_print_string(sn->str, 1);
+		printf("%u  %s\n", sn->hits, sn->str);
 		sn=slist_next(sptr);
 	}
 }
@@ -951,13 +831,10 @@ static void do_user_summary_output(slist *sptr)
 
 		if (sn->str[0] == '-' || isdigit(sn->str[0])) {
 			uid = strtol(sn->str, NULL, 10);
-			printf("%u  ", sn->hits);
-			safe_print_string(aulookup_uid(uid, name,
-				sizeof(name)), 1);
-		} else {
-			printf("%u  ", sn->hits);
-			safe_print_string(sn->str, 1);
-		}
+			printf("%u  %s\n", sn->hits, 
+				aulookup_uid(uid, name, sizeof(name)));
+		} else 
+			printf("%u  %s\n", sn->hits, sn->str); 
 		sn=slist_next(sptr);
 	}
 }

@@ -1,5 +1,5 @@
-/* arm_table.h --
- * Copyright 2009-10,2013-15 Red Hat Inc., Durham, North Carolina.
+/* armeb_table.h --
+ * Copyright 2009-10 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -359,15 +359,3 @@ _S(372, "clock_adjtime")
 _S(373, "syncfs")
 _S(374, "sendmmsg")
 _S(375, "setns")
-_S(376, "process_vm_readv")
-_S(377, "process_vm_writev")
-_S(378, "kcmp")
-_S(379, "finit_module")
-_S(380, "sched_setattr")
-_S(381, "sched_getattr")
-_S(382, "renameat2")
-_S(383, "seccomp")
-_S(384, "getrandom")
-_S(385, "memfd_create")
-_S(386, "bpf")
-_S(387, "execveat")

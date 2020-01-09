@@ -1,5 +1,5 @@
 /* s390_table.h --
- * Copyright 2005-15 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-11 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -290,7 +290,7 @@ _S(289, "mkdirat")
 _S(290, "mknodat")
 _S(291, "fchownat")
 _S(292, "futimesat")
-_S(293, "fstatat64")
+_S(293, "fstatat")
 _S(294, "unlinkat")
 _S(295, "renameat")
 _S(296, "linkat")
@@ -337,18 +337,3 @@ _S(336, "open_by_handle_at")
 _S(337, "clock_adjtime")
 _S(338, "syncfs")
 _S(339, "setns")
-_S(340, "process_vm_readv")
-_S(341, "process_vm_writev")
-_S(342, "s390_runtime_instr")
-_S(343, "kcmp")
-_S(344, "finit_module")
-_S(345, "sched_setattr")
-_S(346, "sched_getattr")
-_S(347, "renameat2")
-_S(348, "seccomp")
-_S(349, "getrandom")
-_S(350, "memfd_create")
-_S(351, "bpf")
-_S(352, "s390_pci_mmio_write")
-_S(353, "s390_pci_mmio_read")
-_S(354, "execveat")

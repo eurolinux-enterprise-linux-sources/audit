@@ -1,5 +1,5 @@
 /* ausearch-options.c - parse commandline options and configure ausearch
- * Copyright 2005-08,2010-11,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-08,2010-11 Red Hat Inc., Durham, North Carolina.
  * Copyright (c) 2011 IBM Corp.
  * All Rights Reserved.
  *
@@ -49,15 +49,12 @@ pid_t event_pid = -1, event_ppid = -1;
 success_t event_success = S_UNSET;
 int event_exact_match = 0;
 uid_t event_uid = -1, event_euid = -1, event_loginuid = -2;
-int event_syscall = -1, event_machine = -1;
+int event_syscall = -1;
 int event_ua = 0, event_ga = 0, event_se = 0;
 int just_one = 0;
-uint32_t event_session_id = -2;
-long long event_exit = 0;
-int event_exit_is_set = 0;
+int event_session_id = -2;
+int event_exit = 0, event_exit_is_set = 0;
 int line_buffered = 0;
-int event_debug = 0;
-int checkpt_timeonly = 0;
 const char *event_key = NULL;
 const char *event_filename = NULL;
 const char *event_exe = NULL;
@@ -68,11 +65,10 @@ const char *event_subject = NULL;
 const char *event_object = NULL;
 const char *event_uuid = NULL;
 const char *event_vmname = NULL;
-const char *checkpt_filename = NULL;	/* checkpoint filename if present */
 report_t report_format = RPT_DEFAULT;
 ilist *event_type;
 
-slist *event_node_list = NULL;
+const slist *event_node_list = NULL;
 
 struct nv_pair {
     int        value;
@@ -85,16 +81,13 @@ S_HOSTNAME, S_INTERP, S_INFILE, S_MESSAGE_TYPE, S_PID, S_SYSCALL, S_OSUCCESS,
 S_TIME_END, S_TIME_START, S_TERMINAL, S_ALL_UID, S_EFF_UID, S_UID, S_LOGINID,
 S_VERSION, S_EXACT_MATCH, S_EXECUTABLE, S_CONTEXT, S_SUBJECT, S_OBJECT,
 S_PPID, S_KEY, S_RAW, S_NODE, S_IN_LOGS, S_JUST_ONE, S_SESSION, S_EXIT,
-S_LINEBUFFERED, S_UUID, S_VMNAME, S_DEBUG, S_CHECKPOINT, S_ARCH };
+S_LINEBUFFERED, S_UUID, S_VMNAME};
 
 static struct nv_pair optiontab[] = {
 	{ S_EVENT, "-a" },
-	{ S_ARCH, "--arch" },
 	{ S_EVENT, "--event" },
 	{ S_COMM, "-c" },
 	{ S_COMM, "--comm" },
-	{ S_CHECKPOINT, "--checkpoint" },
-	{ S_DEBUG, "--debug" },
 	{ S_EXIT, "-e" },
 	{ S_EXIT, "--exit" },
 	{ S_FILENAME, "-f" },
@@ -182,10 +175,7 @@ static void usage(void)
 {
 	printf("usage: ausearch [options]\n"
 	"\t-a,--event <Audit event id>\tsearch based on audit event id\n"
-	"\t--arch <CPU>\t\t\tsearch based on the CPU architecture\n"
 	"\t-c,--comm  <Comm name>\t\tsearch based on command line name\n"
-	"\t--checkpoint <checkpoint file>\tsearch from last complete event\n"
-	"\t--debug\t\t\tWrite malformed events that are skipped to stderr\n"
 	"\t-e,--exit  <Exit code or errno>\tsearch based on syscall exit code\n"
 	"\t-f,--file  <File name>\t\tsearch based on file name\n"
 	"\t-ga,--gid-all <all Group id>\tsearch based on All group ids\n"
@@ -223,7 +213,7 @@ static void usage(void)
 	"\t-vm,--vm-name <guest name>\tsearch for events related to the virtual\n"
 	"\t\t\t\t\tmachine with the name.\n"
 	"\t-w,--word\t\t\tstring matches are whole word\n"
-	"\t-x,--executable <executable name>  search based on executable name\n"
+	"\t-x,--executable  <executable name>  search based on excutable name\n"
 	);
 }
 
@@ -260,18 +250,17 @@ static int convert_str_to_msg(const char *optarg)
 static int parse_msg(const char *optarg)
 {
 	int retval = 0;
-	char *saved;
 
 	if (strchr(optarg, ',')) {
 		char *ptr, *tmp = strdup(optarg);
 		if (tmp == NULL)
 			return -1;
-		ptr = strtok_r(tmp, ",", &saved);
+		ptr = strtok(tmp, ",");
 		while (ptr) {
 			retval = convert_str_to_msg(ptr);
 			if (retval != 0)
 				break;
-			ptr = strtok_r(NULL, ",", &saved);
+			ptr = strtok(NULL, ",");
 		}
 		free(tmp);
 		return retval;
@@ -653,19 +642,16 @@ int check_params(int count, char *vars[])
                                 	retval = -1;
 				}
 			} else {
-				if (event_machine == -1) {
-	                                int machine;
-        	                        machine = audit_detect_machine();
-                	                if (machine < 0) {
-                        	                fprintf(stderr,
+                                int machine;
+                                machine = audit_detect_machine();
+                                if (machine < 0) {
+                                        fprintf(stderr,
                                             "Error detecting machine type");
-                                	        retval = -1;
-						break;
-	                                }
-					event_machine = machine;
-				}
+                                        retval = -1;
+					break;
+                                }
 				event_syscall = audit_name_to_syscall(optarg, 
-					event_machine);
+					machine);
 				if (event_syscall == -1) {
 					fprintf(stderr, 
 						"Syscall %s not found\n",
@@ -730,40 +716,23 @@ int check_params(int count, char *vars[])
 			break;
 		case S_SESSION:
 			if (!optarg) {
-				if ((c+1 < count) && vars[c+1])
-					optarg = vars[c+1];
-				else {
-					fprintf(stderr,
-						"Argument is required for %s\n",
-						vars[c]);
-					retval = -1;
-					break;
-				}
+				fprintf(stderr, 
+					"Argument is required for %s\n",
+					vars[c]);
+				retval = -1;
+				break;
 			}
-			{ 
-			size_t len = strlen(optarg);
 			if (isdigit(optarg[0])) {
 				errno = 0;
-				event_session_id = strtoul(optarg,NULL,10);
+				event_session_id = strtol(optarg,NULL,10);
 				if (errno)
 					retval = -1;
-				c++;
-                        } else if (len >= 2 && *(optarg)=='-' &&
-                                                (isdigit(optarg[1]))) {
-				errno = 0;
-                                event_session_id = strtoul(optarg, NULL, 0);
-				if (errno) {
-					retval = -1;
-					fprintf(stderr, "Error converting %s\n",
-						optarg);
-				}
 				c++;
 			} else {
 				fprintf(stderr, 
 				"Session id must be a numeric value, was %s\n",
 					optarg);
 				retval = -1;
-			}
 			}
 			break;
 		case S_EXIT:
@@ -782,7 +751,7 @@ int check_params(int count, char *vars[])
 			size_t len = strlen(optarg);
                         if (isdigit(optarg[0])) {
 				errno = 0;
-                                event_exit = strtoll(optarg, NULL, 0);
+                                event_exit = strtol(optarg, NULL, 0);
 				if (errno) {
 					retval = -1;
 					fprintf(stderr, "Error converting %s\n",
@@ -791,7 +760,7 @@ int check_params(int count, char *vars[])
                         } else if (len >= 2 && *(optarg)=='-' &&
                                                 (isdigit(optarg[1]))) {
 				errno = 0;
-                                event_exit = strtoll(optarg, NULL, 0);
+                                event_exit = strtol(optarg, NULL, 0);
 				if (errno) {
 					retval = -1;
 					fprintf(stderr, "Error converting %s\n",
@@ -875,12 +844,8 @@ int check_params(int count, char *vars[])
 						if (ausearch_time_start(optarg,
 							"00:00:00") != 0)
 							retval = -1;
-					} else if (strcmp(optarg,
-							"checkpoint") == 0) {
-					// Only use the timestamp from within
-					// the checkpoint file
-						checkpt_timeonly++;
-					} else if (strchr(optarg, ':') == NULL){
+					}
+					else if ( strchr(optarg, ':') == NULL) {
 						/* Only have date */
 						if (ausearch_time_start(optarg,
 							"00:00:00") != 0)
@@ -1014,18 +979,12 @@ int check_params(int count, char *vars[])
 			break;
 		case S_LOGINID:
 			if (!optarg) {
-				if ((c+1 < count) && vars[c+1])
-					optarg = vars[c+1];
-				else {
-					fprintf(stderr,
-						"Argument is required for %s\n",
-						vars[c]);
-					retval = -1;
-					break;
-				}
+				fprintf(stderr, 
+					"Argument is required for %s\n",
+					vars[c]);
+				retval = -1;
+				break;
 			}
-			{
-			size_t len = strlen(optarg);
                         if (isdigit(optarg[0])) {
 				errno = 0;
                         	event_loginuid = strtoul(optarg,NULL,10);
@@ -1034,15 +993,6 @@ int check_params(int count, char *vars[])
 			"Numeric user ID conversion error (%s) for %s\n",
 						strerror(errno), optarg);
                                         retval = -1;
-				}
-                        } else if (len >= 2 && *(optarg)=='-' &&
-                                                (isdigit(optarg[1]))) {
-				errno = 0;
-                                event_loginuid = strtol(optarg, NULL, 0);
-				if (errno) {
-					retval = -1;
-					fprintf(stderr, "Error converting %s\n",
-						optarg);
 				}
                         } else {
 				struct passwd *pw ;
@@ -1057,7 +1007,6 @@ int check_params(int count, char *vars[])
 				}
 				event_loginuid = pw->pw_uid;
                         }
-			}
 			c++;
 			break;
 		case S_UUID:
@@ -1116,50 +1065,6 @@ int check_params(int count, char *vars[])
 			break;
 		case S_LINEBUFFERED:
 			line_buffered = 1;
-			break;
-		case S_DEBUG:
-			event_debug = 1;
-			break;
-		case S_CHECKPOINT:
-			if (!optarg) {
-				fprintf(stderr, 
-					"Argument is required for %s\n",
-					vars[c]);
-				retval = -1;
-			} else {
-				checkpt_filename = strdup(optarg);
-        	                if (checkpt_filename == NULL)
-                	                retval = -1;
-				c++;
-			}
-			break;
-		case S_ARCH:
-			if (!optarg) {
-				fprintf(stderr, 
-					"Argument is required for %s\n",
-					vars[c]);
-				retval = -1;
-				break;
-			}
-			if (event_machine != -1) {
-				if (event_syscall != -1)
-					fprintf(stderr, 
-			"Arch needs to be defined before the syscall\n");
-				else
-					fprintf(stderr, 
-						"Arch is already defined\n");
-				retval = -1;
-				break;
-			} else {
-				int machine = audit_determine_machine(optarg);
-				if (machine < 0) {
-					fprintf(stderr, "Unknown arch %s\n",
-						optarg);
-					retval = -1;
-				}
-				event_machine = machine;
-			}
-			c++;
 			break;
 		default:
 			fprintf(stderr, "%s is an unsupported option\n", 

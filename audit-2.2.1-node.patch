@@ -1,0 +1,30 @@
+diff -urp audit-2.2.orig/auparse/auparse.c audit-2.2/auparse/auparse.c
+--- audit-2.2.orig/auparse/auparse.c	2012-03-01 13:42:33.000000000 -0500
++++ audit-2.2/auparse/auparse.c	2012-03-13 09:38:40.105521399 -0400
+@@ -690,7 +690,10 @@ static int extract_timestamp(const char 
+ 	int rc = 1;
+ 
+         e->host = NULL;
+-	tmp = strndupa(b, 80);
++	if (*b == 'n')
++		tmp = strndupa(b, 340);
++	else
++		tmp = strndupa(b, 80);
+ 	ptr = strtok(tmp, " ");
+ 	if (ptr) {
+ 		// Optionally grab the node - may or may not be included
+diff -urp audit-2.2.orig/src/ausearch-lol.c audit-2.2/src/ausearch-lol.c
+--- audit-2.2.orig/src/ausearch-lol.c	2012-03-01 13:42:32.000000000 -0500
++++ audit-2.2/src/ausearch-lol.c	2012-03-13 09:38:40.099524898 -0400
+@@ -133,7 +133,10 @@ static int extract_timestamp(const char 
+ 	char *ptr, *tmp, *tnode, *ttype;
+ 
+ 	e->node = NULL;
+-	tmp = strndupa(b, 120);
++	if (*b == 'n')
++		tmp = strndupa(b, 340);
++	else
++		tmp = strndupa(b, 80);
+ 	ptr = strtok(tmp, " ");
+ 	if (ptr) {
+ 		// Check to see if this is the node info

@@ -1,5 +1,5 @@
 /* alpha_table.h --
- * Copyright 2005-07,2010-12,2014 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-07,2010-11 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -442,12 +442,3 @@ _S(498, "open_by_handle_at")
 _S(499, "clock_adjtime")
 _S(500, "syncfs")
 _S(501, "setns")
-_S(502, "accept4")
-_S(503, "sendmmsg")
-_S(504, "process_vm_readv")
-_S(505, "process_vm_writev")
-_S(506, "kcmp")
-_S(507, "finit_module")
-_S(508, "sched_setattr")
-_S(509, "sched_getattr")
-_S(510, "renameat2")

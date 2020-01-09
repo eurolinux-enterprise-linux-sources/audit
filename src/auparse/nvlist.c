@@ -3,19 +3,19 @@
 * Copyright (c) 2006-07 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
-* This library is free software; you can redistribute it and/or
-* modify it under the terms of the GNU Lesser General Public
-* License as published by the Free Software Foundation; either
-* version 2.1 of the License, or (at your option) any later version.
+* This software may be freely redistributed and/or modified under the
+* terms of the GNU General Public License as published by the Free
+* Software Foundation; either version 2, or (at your option) any
+* later version.
 *
-* This library is distributed in the hope that it will be useful,
+* This program is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* Lesser General Public License for more details.
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
 *
-* You should have received a copy of the GNU Lesser General Public
-* License along with this library; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+* You should have received a copy of the GNU General Public License
+* along with this program; see the file COPYING. If not, write to the
+* Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 * Authors:
 *   Steve Grubb <sgrubb@redhat.com>
@@ -26,7 +26,6 @@
 #include <string.h>
 #include "nvlist.h"
 #include "interpret.h"
-#include "auparse-idata.h"
 
 
 void nvlist_create(nvlist *l)
@@ -102,11 +101,10 @@ int nvlist_find_name(nvlist *l, const char *name)
 	return 0;
 }
 
-extern int interp_adjust_type(int rtype, const char *name, const char *val);
 int nvlist_get_cur_type(const rnode *r)
 {
 	const nvlist *l = &r->nv;
-	return auparse_interp_adjust_type(r->type, l->cur->name, l->cur->val);
+	return lookup_type(l->cur->name);
 }
 
 const char *nvlist_interp_cur_val(const rnode *r)

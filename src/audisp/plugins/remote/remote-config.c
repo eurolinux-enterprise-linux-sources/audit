@@ -1,5 +1,5 @@
 /* remote-config.c -- 
- * Copyright 2008,2009,2011,2015 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2008, 2009, 2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -211,7 +211,7 @@ void clear_config(remote_conf_t *config)
 	IA(disk_low, FA_IGNORE);
 	IA(disk_full, FA_IGNORE);
 	IA(disk_error, FA_SYSLOG);
-	IA(remote_ending, FA_RECONNECT);
+	IA(remote_ending, FA_SUSPEND);
 	IA(generic_error, FA_SYSLOG);
 	IA(generic_warning, FA_SYSLOG);
 	IA(queue_error, FA_STOP);
@@ -369,12 +369,12 @@ static char *get_line(FILE *f, char *buf)
 static int nv_split(char *buf, struct nv_pair *nv)
 {
 	/* Get the name part */
-	char *ptr, *saved;
+	char *ptr;
 
 	nv->name = NULL;
 	nv->value = NULL;
 	nv->option = NULL;
-	ptr = strtok_r(buf, " ", &saved);
+	ptr = strtok(buf, " ");
 	if (ptr == NULL)
 		return 0; /* If there's nothing, go to next line */
 	if (ptr[0] == '#')
@@ -382,25 +382,25 @@ static int nv_split(char *buf, struct nv_pair *nv)
 	nv->name = ptr;
 
 	/* Check for a '=' */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	if (strcmp(ptr, "=") != 0)
 		return 2;
 
 	/* get the value */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	nv->value = ptr;
 
 	/* See if there's an option */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr) {
 		nv->option = ptr;
 
 		/* Make sure there's nothing else */
-		ptr = strtok_r(NULL, " ", &saved);
+		ptr = strtok(NULL, " ");
 		if (ptr)
 			return 1;
 	}

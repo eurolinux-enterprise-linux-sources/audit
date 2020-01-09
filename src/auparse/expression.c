@@ -1,25 +1,24 @@
 /*
 * expression.c - Expression parsing and handling
-* Copyright (C) 2008,2014 Red Hat Inc., Durham, North Carolina.
+* Copyright (C) 2008 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved.
 *
-* This library is free software; you can redistribute it and/or
-* modify it under the terms of the GNU Lesser General Public
-* License as published by the Free Software Foundation; either
-* version 2.1 of the License, or (at your option) any later version.
+* This software may be freely redistributed and/or modified under the
+* terms of the GNU General Public License as published by the Free
+* Software Foundation; either version 2, or (at your option) any
+* later version.
 *
-* This library is distributed in the hope that it will be useful,
+* This program is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* Lesser General Public License for more details.
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
 *
-* You should have received a copy of the GNU Lesser General Public
-* License along with this library; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+* You should have received a copy of the GNU General Public License
+* along with this program; see the file COPYING. If not, write to the
+* Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 * Authors:
 *   Miloslav Trmač <mitr@redhat.com>
-*   Steve Grubb <sgrubb@redhat.com>  extended timestamp
 */
 
 #include <assert.h>
@@ -192,10 +191,9 @@ lex(struct parsing *p)
 			if (*p->src == '\\') {
 				p->src++;
 				if (*p->src != '\\' && *p->src != delimiter) {
-					if (asprintf(p->error, "Unknown escape "
-						     "sequence ``\\%c''",
-						     *p->src) < 0)
-						*p->error = NULL;
+					*p->error = NULL;
+					asprintf(p->error, "Unknown escape "
+						 "sequence ``\\%c''", *p->src);
 					free(buf);
 					return -1;
 				}
@@ -363,8 +361,6 @@ parse_escaped_field_name(enum field_id *dest, const char *name)
 		*dest = EF_TIMESTAMP;
 	else if (strcmp(name, "record_type") == 0)
 		*dest = EF_RECORD_TYPE;
-	else if (strcmp(name, "timestamp_ex") == 0)
-		*dest = EF_TIMESTAMP_EX;
 	else
 		return -1;
 	return 0;
@@ -381,23 +377,21 @@ parse_timestamp_value(struct expr *dest, struct parsing *p)
 
 	assert(p->token == T_STRING);
 	/* FIXME: other formats? */
-	if (sscanf(p->token_value, "ts:%jd.%u:%u", &sec,
-		   &dest->v.p.value.timestamp_ex.milli,
-		   &dest->v.p.value.timestamp_ex.serial) != 3) {
-		if (sscanf(p->token_value, "ts:%jd.%u", &sec,
-			   &dest->v.p.value.timestamp.milli) != 2) {
-			if (asprintf(p->error, "Invalid timestamp value `%.*s'",
-				     p->token_len, p->token_start) < 0)
-				*p->error = NULL;
-			return -1;
-		}
+	/* FIXME: parse it as a float instead of hard-coding milliseconds? */
+	if (sscanf(p->token_value, "ts:%jd.%u", &sec,
+		   &dest->v.p.value.timestamp.milli)
+	    != 2) {
+		*p->error = NULL;
+		asprintf(p->error, "Invalid timestamp value `%.*s'",
+			 p->token_len, p->token_start);
+		return -1;
 	}
 	/* FIXME: validate milli */
 	dest->v.p.value.timestamp.sec = sec;
 	if (dest->v.p.value.timestamp.sec != sec) {
-		if (asprintf(p->error, "Timestamp overflow in `%.*s'",
-			     p->token_len, p->token_start) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Timestamp overflow in `%.*s'", p->token_len,
+			 p->token_start);
 		return -1;
 	}
 	dest->precomputed_value = 1;
@@ -416,9 +410,9 @@ parse_record_type_value(struct expr *dest, struct parsing *p)
 	assert(p->token == T_STRING);
 	type = audit_name_to_msg_type(p->token_value);
 	if (type < 0) {
-		if (asprintf(p->error, "Invalid record type `%.*s'",
-			     p->token_len, p->token_start) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Invalid record type `%.*s'", p->token_len,
+			 p->token_start);
 		return -1;
 	}
 	dest->v.p.value.int_value = type;
@@ -440,9 +434,6 @@ parse_virtual_field_value(struct expr *dest, struct parsing *p)
 	case EF_RECORD_TYPE:
 		return parse_record_type_value(dest, p);
 
-	case EF_TIMESTAMP_EX:
-		return parse_timestamp_value(dest, p);
-
 	default:
 		abort();
 	}
@@ -461,9 +452,9 @@ parse_comparison_regexp(struct parsing *p, struct expr *res)
 	if (lex(p) != 0)
 		goto err_res;
 	if (p->token != T_STRING && p->token != T_REGEXP) {
-		if (asprintf(p->error, "Regexp expected, got `%.*s'",
-			     p->token_len, p->token_start) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Regexp expected, got `%.*s'", p->token_len,
+			 p->token_start);
 		goto err_res;
 	}
 	res->v.regexp = parser_malloc(p, sizeof(*res->v.regexp));
@@ -479,8 +470,8 @@ parse_comparison_regexp(struct parsing *p, struct expr *res)
 		if (err_msg == NULL)
 			goto err_res_regexp;
 		regerror(err, res->v.regexp, err_msg, err_size);
-		if (asprintf(p->error, "Invalid regexp: %s", err_msg) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Invalid regexp: %s", err_msg);
 		free(err_msg);
 		goto err_res_regexp;
 	}
@@ -523,10 +514,9 @@ parse_comparison(struct parsing *p)
 		res->virtual_field = 1;
 		if (parse_escaped_field_name(&res->v.p.field.id, p->token_value)
 		    != 0) {
-			if (asprintf(p->error,
-				     "Unknown escaped field name `%.*s'",
-				     p->token_len, p->token_start) < 0)
-				*p->error = NULL;
+			*p->error = NULL;
+			asprintf(p->error, "Unknown escaped field name `%.*s'",
+				 p->token_len, p->token_start);
 			goto err_res;
 		}
 	} else {
@@ -544,9 +534,9 @@ parse_comparison(struct parsing *p)
 		if (lex(p) != 0)
 			goto err_field;
 		if (p->token != T_STRING) {
-			if (asprintf(p->error, "Value expected, got `%.*s'",
-				     p->token_len, p->token_start) < 0)
-				*p->error = NULL;
+			*p->error = NULL;
+			asprintf(p->error, "Value expected, got `%.*s'",
+				 p->token_len, p->token_start);
 			goto err_field;
 		}
 		res->precomputed_value = 0;
@@ -564,16 +554,16 @@ parse_comparison(struct parsing *p)
 		if (lex(p) != 0)
 			goto err_field;
 		if (p->token != T_STRING) {
-			if (asprintf(p->error, "Value expected, got `%.*s'",
-				     p->token_len, p->token_start) < 0)
-				*p->error = NULL;
+			*p->error = NULL;
+			asprintf(p->error, "Value expected, got `%.*s'",
+				 p->token_len, p->token_start);
 			goto err_field;
 		}
 		if (res->virtual_field == 0) {
-			if (asprintf(p->error, "Field `%s' does not support "
-				     "value comparison",
-				     res->v.p.field.name) < 0)
-				*p->error = NULL;
+			*p->error = NULL;
+			asprintf (p->error, "Field `%s' does not support "
+				  "value comparison",
+				  res->v.p.field.name);
 			goto err_field;
 		} else {
 			if (parse_virtual_field_value(res, p) != 0)
@@ -586,9 +576,9 @@ parse_comparison(struct parsing *p)
 		break;
 
 	default:
-		if (asprintf(p->error, "Operator expected, got `%.*s'",
-			     p->token_len, p->token_start) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Operator expected, got `%.*s'",
+			 p->token_len, p->token_start);
 		goto err_field;
 	}
 	return res;
@@ -634,10 +624,9 @@ parse_primary(struct parsing *p)
 		if (e == NULL)
 			return NULL;
 		if (p->token != T_RIGHT_PAREN) {
-			if (asprintf(p->error,
-				     "Right paren expected, got `%.*s'",
-				     p->token_len, p->token_start) < 0)
-				*p->error = NULL;
+			*p->error = NULL;
+			asprintf(p->error, "Right paren expected, got `%.*s'",
+				 p->token_len, p->token_start);
 			goto err_e;
 		}
 		if (lex(p) != 0)
@@ -649,9 +638,9 @@ parse_primary(struct parsing *p)
 		return parse_comparison(p);
 
 	default:
-		if (asprintf(p->error, "Unexpected token `%.*s'", p->token_len,
-			     p->token_start) < 0)
-			*p->error = NULL;
+		*p->error = NULL;
+		asprintf(p->error, "Unexpected token `%.*s'", p->token_len,
+			 p->token_start);
 		return NULL;
 	}
 err_e:
@@ -755,9 +744,9 @@ expr_parse(const char *string, char **error)
 	res = parse_or(&p);
 	if (res != NULL && p.token != T_EOF) {
 		expr_free(res);
-		if (asprintf(error, "Unexpected trailing token `%.*s'",
-			     p.token_len, p.token_start) < 0)
-			*error = NULL;
+		*error = NULL;
+		asprintf(error, "Unexpected trailing token `%.*s'",
+			 p.token_len, p.token_start);
 		goto err;
 	}
 	free(p.token_value);
@@ -802,13 +791,11 @@ err:
 	return NULL;
 }
 
-/* Create an extended timestamp comparison-expression for with OP, SEC, 
-   MILLI, and SERIAL.
+/* Create a \timestamp comparison-expression for with OP, SEC, MILLI.
    On success, return the created expression.
    On error, set errno and return NULL. */
 struct expr *
-expr_create_timestamp_comparison_ex(unsigned op, time_t sec, unsigned milli,
-	unsigned serial)
+expr_create_timestamp_comparison(unsigned op, time_t sec, unsigned milli)
 {
 	struct expr *res;
 
@@ -819,22 +806,12 @@ expr_create_timestamp_comparison_ex(unsigned op, time_t sec, unsigned milli,
 	       || op == EO_VALUE_LE || op == EO_VALUE_GT || op == EO_VALUE_GE);
 	res->op = op;
 	res->virtual_field = 1;
-	res->v.p.field.id = EF_TIMESTAMP_EX;
+	res->v.p.field.id = EF_TIMESTAMP;
 	res->precomputed_value = 1;
-	res->v.p.value.timestamp_ex.sec = sec;
+	res->v.p.value.timestamp.sec = sec;
 	assert(milli < 1000);
-	res->v.p.value.timestamp_ex.milli = milli;
-	res->v.p.value.timestamp_ex.serial = serial;
+	res->v.p.value.timestamp.milli = milli;
 	return res;
-}
-
-/* Create a timestamp comparison-expression for with OP, SEC, MILLI.
-   On success, return the created expression.
-   On error, set errno and return NULL. */
-struct expr *
-expr_create_timestamp_comparison(unsigned op, time_t sec, unsigned milli)
-{
-	return expr_create_timestamp_comparison_ex(op, sec, milli, 0);
 }
 
 /* Create an EO_FIELD_EXISTS-expression for FIELD.
@@ -925,7 +902,7 @@ eval_raw_value(auparse_state_t *au, rnode *record, const struct expr *expr,
 		return (char *)nvlist_get_cur_val(&record->nv);
 	}
 	switch (expr->v.p.field.id) {
-	case EF_TIMESTAMP: case EF_RECORD_TYPE: case EF_TIMESTAMP_EX:
+	case EF_TIMESTAMP: case EF_RECORD_TYPE:
 		return NULL;
 
 	default:
@@ -953,7 +930,7 @@ eval_interpreted_value(auparse_state_t *au, rnode *record,
 		return (char *)res;
 	}
 	switch (expr->v.p.field.id) {
-	case EF_TIMESTAMP: case EF_RECORD_TYPE: case EF_TIMESTAMP_EX:
+	case EF_TIMESTAMP: case EF_RECORD_TYPE:
 		return NULL;
 
 	default:
@@ -990,23 +967,6 @@ compare_values(auparse_state_t *au, rnode *record, const struct expr *expr,
 		if (record->type < expr->v.p.value.int_value)
 			res = -1;
 		else if (record->type > expr->v.p.value.int_value)
-			res = 1;
-		else
-			res = 0;
-		break;
-
-	case EF_TIMESTAMP_EX:
-		if (au->le.e.sec < expr->v.p.value.timestamp.sec)
-			res = -1;
-		else if (au->le.e.sec > expr->v.p.value.timestamp.sec)
-			res = 1;
-		else if (au->le.e.milli < expr->v.p.value.timestamp.milli)
-			res = -1;
-		else if (au->le.e.milli > expr->v.p.value.timestamp.milli)
-			res = 1;
-		else if (au->le.e.serial < expr->v.p.value.timestamp_ex.serial)
-			res = -1;
-		else if (au->le.e.serial > expr->v.p.value.timestamp_ex.serial)
 			res = 1;
 		else
 			res = 0;

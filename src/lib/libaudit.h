@@ -1,5 +1,5 @@
 /* libaudit.h -- 
- * Copyright 2004-2015 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -59,24 +59,24 @@ extern "C" {
 
 #define AUDIT_FIRST_USER_MSG    1100    /* First user space message */
 #define AUDIT_LAST_USER_MSG     1199    /* Last user space message */
-#define AUDIT_USER_AUTH         1100    /* User system access authentication */
-#define AUDIT_USER_ACCT         1101    /* User system access authorization */
-#define AUDIT_USER_MGMT         1102    /* User acct attribute change */
-#define AUDIT_CRED_ACQ          1103    /* User credential acquired */
-#define AUDIT_CRED_DISP         1104    /* User credential disposed */
-#define AUDIT_USER_START        1105    /* User session start */
-#define AUDIT_USER_END          1106    /* User session end */
+#define AUDIT_USER_AUTH         1100    /* User space authentication */
+#define AUDIT_USER_ACCT         1101    /* User space acct change */
+#define AUDIT_USER_MGMT         1102    /* User space acct management */
+#define AUDIT_CRED_ACQ          1103    /* User space credential acquired */
+#define AUDIT_CRED_DISP         1104    /* User space credential disposed */
+#define AUDIT_USER_START        1105    /* User space session start */
+#define AUDIT_USER_END          1106    /* User space session end */
 #define AUDIT_USER_AVC          1107    /* User space avc message */
-#define AUDIT_USER_CHAUTHTOK	1108	/* User acct password or pin changed */
-#define AUDIT_USER_ERR		1109	/* User acct state error */
-#define AUDIT_CRED_REFR         1110    /* User credential refreshed */
+#define AUDIT_USER_CHAUTHTOK	1108	/* User space acct attr changed */
+#define AUDIT_USER_ERR		1109	/* User space acct state err */
+#define AUDIT_CRED_REFR         1110    /* User space credential refreshed */
 #define AUDIT_USYS_CONFIG       1111    /* User space system config change */
-#define AUDIT_USER_LOGIN	1112    /* User has logged in */
-#define AUDIT_USER_LOGOUT	1113    /* User has logged out */
-#define AUDIT_ADD_USER		1114    /* User account added */
-#define AUDIT_DEL_USER		1115    /* User account deleted */
-#define AUDIT_ADD_GROUP		1116    /* Group account added */
-#define AUDIT_DEL_GROUP		1117    /* Group account deleted */
+#define AUDIT_USER_LOGIN	1112    /* User space user has logged in */
+#define AUDIT_USER_LOGOUT	1113    /* User space user has logged out */
+#define AUDIT_ADD_USER		1114    /* User space user account added */
+#define AUDIT_DEL_USER		1115    /* User space user account deleted */
+#define AUDIT_ADD_GROUP		1116    /* User space group added */
+#define AUDIT_DEL_GROUP		1117    /* User space group deleted */
 #define AUDIT_DAC_CHECK		1118    /* User space DAC check results */
 #define AUDIT_CHGRP_ID		1119    /* User space group ID changed */
 #define AUDIT_TEST		1120	/* Used for test success messages */
@@ -91,11 +91,6 @@ extern "C" {
 #define AUDIT_SYSTEM_RUNLEVEL	1129	/* System runlevel change */
 #define AUDIT_SERVICE_START	1130	/* Service (daemon) start */
 #define AUDIT_SERVICE_STOP	1131	/* Service (daemon) stop */
-#define AUDIT_GRP_MGMT		1132	/* Group account attr was modified */
-#define AUDIT_GRP_CHAUTHTOK	1133	/* Group acct password or pin changed */
-#define AUDIT_MAC_CHECK		1134    /* User space MAC decision results */
-#define AUDIT_ACCT_LOCK		1135    /* User's account locked by admin */
-#define AUDIT_ACCT_UNLOCK	1136    /* User's account unlocked by admin */
 
 #define AUDIT_FIRST_DAEMON	1200
 #define AUDIT_LAST_DAEMON	1299
@@ -191,7 +186,6 @@ extern "C" {
 #define AUDIT_FS_RELABEL		2309 /* Filesystem relabeled */
 #define AUDIT_USER_MAC_POLICY_LOAD	2310 /* Userspc daemon loaded policy */
 #define AUDIT_ROLE_MODIFY		2311 /* Admin modified a role */
-#define AUDIT_USER_MAC_CONFIG_CHANGE	2312 /* Change made to MAC policy */
 
 #define AUDIT_FIRST_CRYPTO_MSG		2400
 #define AUDIT_CRYPTO_TEST_USER		2400 /* Crypto test results */
@@ -203,10 +197,6 @@ extern "C" {
 #define AUDIT_CRYPTO_REPLAY_USER	2406 /* Crypto replay detected */
 #define AUDIT_CRYPTO_SESSION		2407 /* Record parameters set during
 						TLS session establishment */
-#define AUDIT_CRYPTO_IKE_SA		2408 /* Record parameters related to
-						IKE SA */
-#define AUDIT_CRYPTO_IPSEC_SA		2409 /* Record parameters related to
-						IPSEC SA */
 
 #define AUDIT_LAST_CRYPTO_MSG		2499
 
@@ -223,14 +213,6 @@ extern "C" {
 #endif
 
 /* New kernel event definitions since 2.6.30 */
-#ifndef AUDIT_SET_FEATURE
-#define AUDIT_SET_FEATURE       1018    /* Turn an audit feature on or off */
-#endif
-
-#ifndef AUDIT_GET_FEATURE
-#define AUDIT_GET_FEATURE       1019    /* Get which features are enabled */
-#endif
-
 #ifndef AUDIT_MMAP
 #define AUDIT_MMAP		1323 /* Descriptor and flags in mmap */
 #endif
@@ -242,22 +224,6 @@ extern "C" {
 #define AUDIT_NETFILTER_CFG	1325 /* Netfilter chain modifications */
 #endif
 
-#ifndef AUDIT_SECCOMP
-#define AUDIT_SECCOMP		1326 /* Secure Computing event */
-#endif
-
-#ifndef AUDIT_PROCTITLE
-#define AUDIT_PROCTITLE		1327 /* Process Title info */
-#endif
-
-#undef AUDIT_FEATURE_CHANGE
-#ifndef AUDIT_FEATURE_CHANGE
-#define AUDIT_FEATURE_CHANGE	1328 /* Audit feature changed value */
-#endif
-
-#ifndef AUDIT_ANOM_LINK
-#define AUDIT_ANOM_LINK		1702 /* Suspicious use of file links */
-#endif
 
 /* This is related to the filterkey patch */
 #define AUDIT_KEY_SEPARATOR 0x01
@@ -354,21 +320,6 @@ extern "C" {
 #define AUDIT_COMPARE_SGID_TO_FSGID    25
 #endif
 
-#ifndef EM_ARM
-#define EM_ARM  40
-#endif
-#ifndef EM_AARCH64
-#define EM_AARCH64 183
-#endif
-
-#ifndef AUDIT_ARCH_AARCH64
-#define AUDIT_ARCH_AARCH64	(EM_AARCH64|__AUDIT_ARCH_64BIT|__AUDIT_ARCH_LE)
-#endif
-
-#ifndef AUDIT_ARCH_PPC64LE
-#define AUDIT_ARCH_PPC64LE	(EM_PPC64|__AUDIT_ARCH_64BIT|__AUDIT_ARCH_LE)
-#endif
-
 //////////////////////////////////////////////////////
 // This is an external ABI. Any changes in here will
 // likely affect pam_loginuid. There might be other
@@ -404,13 +355,10 @@ struct audit_reply {
 	struct audit_status     *status;
 	struct audit_rule_data  *ruledata;
 	struct audit_login      *login;
-	char                    *message;
+	const char              *message;
 	struct nlmsgerr         *error;
 	struct audit_sig_info   *signal_info;
 	struct daemon_conf      *conf;
-#if HAVE_DECL_AUDIT_FEATURE_VERSION
-	struct audit_features	*features;
-#endif
 	};
 };
 
@@ -449,9 +397,7 @@ typedef enum {
 	MACH_S390X,
 	MACH_S390,
 	MACH_ALPHA,
-	MACH_ARM,
-	MACH_AARCH64,
-	MACH_PPC64LE
+	MACH_ARMEB
 } machine_t;
 
 /* These are the valid audit failure tunable enum values */
@@ -475,7 +421,6 @@ extern int  audit_get_reply(int fd, struct audit_reply *rep, reply_t block,
 extern uid_t audit_getloginuid(void);
 extern int  audit_setloginuid(uid_t uid);
 extern int  audit_detect_machine(void);
-extern int audit_determine_machine(const char *arch);
 
 /* Translation functions */
 extern int        audit_name_to_field(const char *field);
@@ -503,7 +448,6 @@ extern void audit_number_to_errmsg(int errnumber, const char *opt);
 extern int audit_request_status(int fd);
 extern int audit_is_enabled(int fd);
 extern int get_auditfail_action(auditfail_t *failmode);
-extern int audit_request_features(int fd);
 
 /* AUDIT_SET */
 typedef enum { WAIT_NO, WAIT_YES } rep_wait_t;
@@ -512,9 +456,6 @@ extern int  audit_set_enabled(int fd, uint32_t enabled);
 extern int  audit_set_failure(int fd, uint32_t failure);
 extern int  audit_set_rate_limit(int fd, uint32_t limit);
 extern int  audit_set_backlog_limit(int fd, uint32_t limit);
-int audit_set_backlog_wait_time(int fd, uint32_t bwt);
-extern int  audit_set_feature(int fd, unsigned feature, unsigned value, unsigned lock);
-extern int  audit_set_loginuid_immutable(int fd);
 
 /* AUDIT_LIST_RULES */
 extern int  audit_request_rules_list_data(int fd);

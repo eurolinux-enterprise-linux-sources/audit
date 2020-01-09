@@ -1,5 +1,5 @@
 /* audispd-config.c -- 
- * Copyright 2007-08,2010,2014-15 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2007-08,2010 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -56,8 +56,7 @@ struct nv_list
 	int option;
 };
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-		const char *file);
+static char *get_line(FILE *f, char *buf);
 static int nv_split(char *buf, struct nv_pair *nv);
 static const struct kw_pair *kw_lookup(const char *val);
 static int q_depth_parser(struct nv_pair *nv, int line, 
@@ -123,7 +122,7 @@ int load_config(daemon_conf_t *config, const char *file)
 	int fd, rc, mode, lineno = 1;
 	struct stat st;
 	FILE *f;
-	char buf[160];
+	char buf[128];
 
 	clear_config(config);
 
@@ -179,7 +178,7 @@ int load_config(daemon_conf_t *config, const char *file)
 		return 1;
 	}
 
-	while (get_line(f, buf, sizeof(buf), &lineno, file)) {
+	while (get_line(f, buf)) {
 		// convert line into name-value pair
 		const struct kw_pair *kw;
 		struct nv_pair nv;
@@ -209,8 +208,6 @@ int load_config(daemon_conf_t *config, const char *file)
 		}
 		if (nv.value == NULL) {
 			fclose(f);
-			audit_msg(LOG_ERR, 
-				"Not processing any more lines in %s", file);
 			return 1;
 		}
 
@@ -250,31 +247,14 @@ int load_config(daemon_conf_t *config, const char *file)
 	return 0;
 }
 
-static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
-	const char *file)
+static char *get_line(FILE *f, char *buf)
 {
-	int too_long = 0;
-
-	while (fgets_unlocked(buf, size, f)) {
+	if (fgets_unlocked(buf, 128, f)) {
 		/* remove newline */
 		char *ptr = strchr(buf, 0x0a);
-		if (ptr) {
-			if (!too_long) {
-				*ptr = 0;
-				return buf;
-			}
-			// Reset and start with the next line
-			too_long = 0;
-			*lineno = *lineno + 1;
-		} else {
-			// If a line is too long skip it.
-			//  Only output 1 warning
-			if (!too_long)
-				audit_msg(LOG_ERR,
-					"Skipping line %d in %s: too long",
-					*lineno, file);
-			too_long = 1;
-		}
+		if (ptr)
+			*ptr = 0;
+		return buf;
 	}
 	return NULL;
 }
@@ -282,12 +262,12 @@ static char *get_line(FILE *f, char *buf, unsigned size, int *lineno,
 static int nv_split(char *buf, struct nv_pair *nv)
 {
 	/* Get the name part */
-	char *ptr, *saved;
+	char *ptr;
 
 	nv->name = NULL;
 	nv->value = NULL;
 	nv->option = NULL;
-	ptr = strtok_r(buf, " ", &saved);
+	ptr = strtok(buf, " ");
 	if (ptr == NULL)
 		return 0; /* If there's nothing, go to next line */
 	if (ptr[0] == '#')
@@ -295,25 +275,25 @@ static int nv_split(char *buf, struct nv_pair *nv)
 	nv->name = ptr;
 
 	/* Check for a '=' */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	if (strcmp(ptr, "=") != 0)
 		return 2;
 
 	/* get the value */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr == NULL)
 		return 1;
 	nv->value = ptr;
 
 	/* See if there's an option */
-	ptr = strtok_r(NULL, " ", &saved);
+	ptr = strtok(NULL, " ");
 	if (ptr) {
 		nv->option = ptr;
 
 		/* Make sure there's nothing else */
-		ptr = strtok_r(NULL, " ", &saved);
+		ptr = strtok(NULL, " ");
 		if (ptr)
 			return 1;
 	}

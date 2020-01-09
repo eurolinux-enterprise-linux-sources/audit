@@ -1,6 +1,6 @@
 /*
 * ausearch-string.c - Minimal linked list library for strings
-* Copyright (c) 2005,2008,2014 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005,2008 Red Hat Inc., Durham, North Carolina.
 * All Rights Reserved. 
 *
 * This software may be freely redistributed and/or modified under the
@@ -35,21 +35,15 @@ void slist_create(slist *l)
 
 void slist_last(slist *l)
 {
-        register snode* cur;
+        register snode* window;
 	
 	if (l->head == NULL)
 		return;
 
-	// Try using cur so that we don't have to start at beginnning
-	if (l->cur)
-		cur = l->cur;
-	else
-	        cur = l->head;
-
-	// Loop until no next value
-	while (cur->next)
-		cur = cur->next;
-	l->cur = cur;
+        window = l->head;
+	while (window->next)
+		window = window->next;
+	l->cur = window;
 }
 
 snode *slist_next(slist *l)
@@ -78,9 +72,6 @@ void slist_append(slist *l, snode *node)
 
 	newnode->hits = node->hits;
 	newnode->next = NULL;
-
-	// Make sure cursor is at the end
-	slist_last(l);
 
 	// if we are at top, fix this up
 	if (l->head == NULL)
@@ -121,7 +112,6 @@ int slist_add_if_uniq(slist *l, const char *str)
 	while (cur) {
 		if (strcmp(str, cur->str) == 0) {
 			cur->hits++;
-			l->cur = cur;
 			return 0;
 		} else 
 			cur = cur->next;
@@ -135,44 +125,45 @@ int slist_add_if_uniq(slist *l, const char *str)
 	return 1;
 }
 
-// If lprev would be NULL, use l->head
-static void swap_nodes(snode *lprev, snode *left, snode *right)
-{
-	snode *t = right->next;
-	if (lprev)
-		lprev->next = right;
-	right->next = left;
-	left->next = t;
-}
-
-// This will sort the list from most hits to least
 void slist_sort_by_hits(slist *l)
 {
-	register snode* cur, *prev;
+	register snode* cur, *prev = NULL;
 
 	if (l->cnt <= 1)
 		return;
 
-	prev = cur = l->head;
+	cur = l->head;
+
+	/* Make sure l->cur points to end */
+	if (l->cur->next != NULL) {
+		prev = l->cur->next;
+		while (prev->next)
+			prev = prev->next;
+		l->cur = prev;
+	}
 
 	while (cur && cur->next) {
 		/* If the next node is bigger */
 		if (cur->hits < cur->next->hits) {
-			if (cur == l->head) {
-				// Update the actual list head
+			// detach node
+			if (l->head == cur)
 				l->head = cur->next;
-				prev = NULL;
-			}
-			swap_nodes(prev, cur, cur->next);
+			if (prev)
+				prev->next = cur->next;
+			else
+				prev = cur->next;
+
+			// append
+			slist_append(l, cur);
+			free(cur);
 
 			// start over
-			prev = cur = l->head;
+			cur = l->head;
+			prev = NULL;
 			continue;
 		}
 		prev = cur;
 		cur = cur->next;
 	}
-	// End with cur pointing at first record
-	l->cur = l->head;
 }
 

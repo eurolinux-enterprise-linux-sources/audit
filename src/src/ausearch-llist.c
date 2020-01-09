@@ -107,10 +107,8 @@ void list_append(llist *l, lnode *node)
 	else
 		newnode->message = NULL;
 
-	newnode->mlen = node->mlen;
 	newnode->type = node->type;
 	newnode->a0 = node->a0;
-	newnode->a1 = node->a1;
 	newnode->item = l->cnt; 
 	newnode->next = NULL;
 

@@ -1,5 +1,5 @@
 /* audit_logging.c -- 
- * Copyright 2005-2008,2010,2011,2013 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-2008,2010,2011 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -133,14 +133,12 @@ char *audit_encode_nv_string(const char *name, const char *value,
 		char *tmp = malloc(2*vlen + 1);
 		if (tmp) {
 			audit_encode_value(tmp, value, vlen);
-			if (asprintf(&str, "%s=%s", name, tmp) < 0)
-				str = NULL;
+			asprintf(&str, "%s=%s", name, tmp);
 			free(tmp);
 		} else
 			str = NULL;
 	} else
-		if (asprintf(&str, "%s=\"%s\"", name, value ? value : "?") < 0)
-			str = NULL;
+		asprintf(&str, "%s=\"%s\"", name, value ? value : "?");
 	return str;
 }
 
@@ -385,7 +383,7 @@ int audit_log_acct_message(int audit_fd, int type, const char *pgname,
 	const char *success;
 	char buf[MAX_AUDIT_MESSAGE_LENGTH];
 	char addrbuf[INET6_ADDRSTRLEN];
-	static char exename[PATH_MAX*2] = "";
+	char exename[PATH_MAX*2];
 	char ttyname[TTY_PATH];
 	int ret;
 
@@ -406,10 +404,9 @@ int audit_log_acct_message(int audit_fd, int type, const char *pgname,
 	else
 		strncat(addrbuf, addr, sizeof(addrbuf)-1);
 
-        if (pgname == NULL) {
-		if (exename[0] == 0)
-	                _get_exename(exename, sizeof(exename));
-        } else if (pgname[0] != '"')
+        if (pgname == NULL)
+                _get_exename(exename, sizeof(exename));
+        else if (pgname[0] != '"')
                 snprintf(exename, sizeof(exename), "\"%s\"", pgname);
         else
                 snprintf(exename, sizeof(exename), "%s", pgname);
@@ -480,7 +477,7 @@ int audit_log_user_avc_message(int audit_fd, int type, const char *message,
 {
 	char buf[MAX_AUDIT_MESSAGE_LENGTH];
 	char addrbuf[INET6_ADDRSTRLEN];
-	static char exename[PATH_MAX*2] = "";
+	char exename[PATH_MAX*2];
 	char ttyname[TTY_PATH];
 	int retval;
 
@@ -495,8 +492,7 @@ int audit_log_user_avc_message(int audit_fd, int type, const char *message,
 		_resolve_addr(addrbuf, hostname);
 	else
 		strncat(addrbuf, addr, sizeof(addrbuf)-1);
-	if (exename[0] == 0)
-		_get_exename(exename, sizeof(exename));
+	_get_exename(exename, sizeof(exename));
 	if (tty == NULL) 
 		tty = _get_tty(ttyname, TTY_PATH);
 	else if (*tty == 0)
@@ -512,7 +508,7 @@ int audit_log_user_avc_message(int audit_fd, int type, const char *message,
 
 	errno = 0;
 	retval = audit_send_user_message( audit_fd, type, REAL_ERR, buf );
-	if (retval == -EPERM && geteuid() != 0) {
+	if (retval == -EPERM && getuid() != 0) {
 		syslog(LOG_ERR, "Can't send to audit system: %s %s",
 			audit_msg_type_to_name(type), buf);
 		return 0;
@@ -558,7 +554,7 @@ int audit_log_semanage_message(int audit_fd, int type, const char *pgname,
 	const char *success;
 	char buf[MAX_AUDIT_MESSAGE_LENGTH];
 	char addrbuf[INET6_ADDRSTRLEN];
-	static char exename[PATH_MAX*2] = "";
+	char exename[PATH_MAX*2];
 	char ttyname[TTY_PATH];
 	int ret;
 
@@ -580,8 +576,7 @@ int audit_log_semanage_message(int audit_fd, int type, const char *pgname,
 		strncat(addrbuf, addr, sizeof(addrbuf)-1);
 
 	if (pgname == NULL || strlen(pgname) == 0) {
-		if (exename[0] == 0)
-			_get_exename(exename, sizeof(exename));
+		_get_exename(exename, sizeof(exename));
 		pgname = exename;
 	}
 	if (tty == NULL || strlen(tty) == 0) 

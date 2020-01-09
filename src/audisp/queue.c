@@ -1,5 +1,5 @@
 /* queue.c --
- * Copyright 2007,2013,2015 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2007 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -33,14 +33,10 @@ static pthread_cond_t queue_nonempty;
 static unsigned int q_next, q_last, q_depth, processing_suspended;
 static const char *SINGLE = "1";
 static const char *HALT = "0";
-static int queue_full_warning = 0;
-extern volatile int hup;
-#define QUEUE_FULL_LIMIT 5
 
 void reset_suspended(void)
 {
 	processing_suspended = 0;
-	queue_full_warning = 0;
 }
 
 int init_queue(unsigned int size)
@@ -94,16 +90,7 @@ static void do_overflow_action(struct daemon_conf *config)
                 case O_IGNORE:
 			break;
                 case O_SYSLOG:
-			if (queue_full_warning < QUEUE_FULL_LIMIT) {
-				syslog(LOG_ERR,
-					"queue is full - dropping event");
-				queue_full_warning++;
-				if (queue_full_warning == QUEUE_FULL_LIMIT)
-					syslog(LOG_ERR,
-						"audispd queue full reporting "
-						"limit reached - ending "
-						"dropped event notifications");
-			}
+			syslog(LOG_ERR, "queue is full - dropping event");
                         break;
                 case O_SUSPEND:
                         syslog(LOG_ALERT,
@@ -169,10 +156,6 @@ event_t *dequeue(void)
 
 	// Wait until its got something in it
 	pthread_mutex_lock(&queue_lock);
-	if (hup) {
-		pthread_mutex_unlock(&queue_lock);
-		return NULL;
-	}
 	n = q_last%q_depth;
 	if (q[n] == NULL) {
 		pthread_cond_wait(&queue_nonempty, &queue_lock);

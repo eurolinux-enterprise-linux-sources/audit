@@ -1,5 +1,5 @@
 /* audispd.c --
- * Copyright 2007-08,2013 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2007-08 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -76,20 +76,10 @@ static void child_handler( int sig )
 {
 	int status;
 	pid_t pid;
-	
-	pid = waitpid(-1, &status, WNOHANG);
+
+        pid = waitpid(-1, &status, WNOHANG);
 	if (pid > 0) {
-		// Mark the child pid as 0 in the configs
-		lnode *tpconf;
-		plist_first(&plugin_conf);
-		tpconf = plist_get_cur(&plugin_conf);
-		while (tpconf) {
-			if (tpconf->p && tpconf->p->pid == pid) {
-				tpconf->p->pid = 0;
-				break;
-			}
-			tpconf = plist_next(&plugin_conf);
-		}
+		// FIXME: Need to mark the child pid as 0 in the configs
 	}
 }
 
@@ -98,7 +88,7 @@ static void child_handler( int sig )
  */
 static void hup_handler( int sig )
 {
-	hup = 1;
+        hup = 1;
 }
 
 /*
@@ -106,8 +96,8 @@ static void hup_handler( int sig )
  */
 static void alarm_handler( int sig )
 {
-	pthread_cancel(inbound_thread);
-	raise(SIGTERM);
+        pthread_cancel(inbound_thread);
+	abort();
 }
 
 static int count_dots(const char *s)
@@ -206,7 +196,7 @@ static int start_plugins(conf_llist *plugin)
 	return active;
 }
 
-static int reconfigure(void)
+static void reconfigure(void)
 {
 	int rc;
 	daemon_conf_t tdc;
@@ -240,7 +230,6 @@ static int reconfigure(void)
 	 * 7) If no change, send sighup to non-builtins and mark done
 	 * 8) Finally, scan real list for unchecked, terminate and deactivate
 	 */
-	syslog(LOG_INFO, "Starting reconfigure");
 	load_plugin_conf(&tmp_plugin);
 	plist_mark_all_unchecked(&plugin_conf);
 
@@ -262,26 +251,8 @@ static int reconfigure(void)
 			}
 		} else {
 			if (opconf->p->active == tpconf->p->active) {
-				/* If active and no state change, sighup it */
-				if (opconf->p->type == S_ALWAYS && 
-						opconf->p->active == A_YES) {
-					if (opconf->p->inode==tpconf->p->inode)
-						kill(opconf->p->pid, SIGHUP);
-					else {
-						/* Binary changed, restart */
-						syslog(LOG_INFO,
-					"Restarting %s since binary changed",
-							opconf->p->path);
-						kill(opconf->p->pid, SIGTERM);
-						usleep(50000); // 50 msecs
-						close(opconf->p->plug_pipe[1]);
-						opconf->p->plug_pipe[1] = -1;
-						opconf->p->pid = 0;
-						start_one_plugin(opconf);
-						opconf->p->inode =
-							tpconf->p->inode;
-					}
-				}
+				if (opconf->p->type == S_ALWAYS)
+					kill(opconf->p->pid, SIGHUP);
 				opconf->p->checked = 1;
 			} else {
 				/* A change in state */
@@ -304,14 +275,7 @@ static int reconfigure(void)
 	while ( (tpconf = plist_find_unchecked(&plugin_conf)) ) {
 		/* Anything not checked is something removed from the config */
 		tpconf->p->active = A_NO;
-		syslog(LOG_INFO, "Terminating %s because its now inactive",
-				tpconf->p->path);
-		if (tpconf->p->type == S_ALWAYS) {
-			kill(tpconf->p->pid, SIGTERM);
-			close(tpconf->p->plug_pipe[1]);
-		} else
-			stop_builtin(tpconf->p);
-		tpconf->p->plug_pipe[1] = -1;
+		kill(tpconf->p->pid, SIGTERM);
 		tpconf->p->pid = 0;
 		tpconf->p->checked = 1;
 	}
@@ -324,7 +288,6 @@ static int reconfigure(void)
 		tpconf = plist_next(&tmp_plugin);
 	}
 	plist_clear(&tmp_plugin);
-	return plist_count_active(&plugin_conf);
 }
 
 int main(int argc, char *argv[])
@@ -341,10 +304,6 @@ int main(int argc, char *argv[])
 	}
 #endif
 	set_aumessage_mode(MSG_SYSLOG, DBG_YES);
-
-	/* Clear any procmask set by libev */
-	sigfillset (&sa.sa_mask);
-	sigprocmask (SIG_UNBLOCK, &sa.sa_mask, 0);
 
 	/* Register sighandlers */
 	sa.sa_flags = 0;
@@ -401,7 +360,7 @@ int main(int argc, char *argv[])
 
 	/* if no plugins - exit */
 	if (plist_count(&plugin_conf) == 0) {
-		syslog(LOG_NOTICE, "No plugins found, exiting");
+		syslog(LOG_ERR, "No plugins found, exiting");
 		return 0;
 	}
 
@@ -410,11 +369,9 @@ int main(int argc, char *argv[])
 
 	/* Now boost priority to make sure we are getting time slices */
 	if (daemon_config.priority_boost != 0) {
-		int rc;
-
 		errno = 0;
-		rc = nice((int)-daemon_config.priority_boost);
-		if (rc == -1 && errno) {
+		(void) nice((int)-daemon_config.priority_boost);
+		if (errno) {
 			syslog(LOG_ERR, "Cannot change priority (%s)",
 					strerror(errno));
 			/* Stay alive as this is better than stopping */
@@ -423,7 +380,7 @@ int main(int argc, char *argv[])
 
 	/* Let the queue initialize */
 	init_queue(daemon_config.q_depth);
-	syslog(LOG_INFO, 
+	syslog(LOG_NOTICE, 
 		"audispd initialized with q_depth=%d and %d active plugins",
 		daemon_config.q_depth, i);
 
@@ -439,11 +396,7 @@ int main(int argc, char *argv[])
 	/* Start event loop */
 	while (event_loop()) {
 		hup = 0;
-		if (reconfigure() == 0) {
-			syslog(LOG_INFO,
-		"After reconfigure, there are no active plugins, exiting");
-			break;
-		}
+		reconfigure();
 	}
 
 	/* Tell plugins we are going down */
@@ -515,7 +468,7 @@ static void signal_plugins(int sig)
 	plist_first(&plugin_conf);
 	conf = plist_get_cur(&plugin_conf);
 	while (conf) {
-		if (conf->p && conf->p->pid && conf->p->type == S_ALWAYS)
+		if (conf->p && conf->p->pid)
 			kill(conf->p->pid, sig);
 		conf = plist_next(&plugin_conf);
 	}
@@ -660,7 +613,6 @@ static int event_loop(void)
 			len = asprintf(&v, "type=%s msg=%.*s\n", 
 				type, e->hdr.size, e->data);
 		if (len <= 0) {
-			v = NULL;
 			free(e); /* Either corrupted event or no memory */
 			continue;
 		}
@@ -781,7 +733,7 @@ static void *inbound_thread_main(void *arg)
 			nudge_queue();
 		do {
 			rc = poll(pfd, pfd_cnt, 20000); /* 20 sec */
-		} while (rc < 0 && errno == EAGAIN && stop == 0 && hup == 0);
+		} while (rc < 0 && errno == EAGAIN && stop == 0);
 		if (rc == 0)
 			continue;
 
