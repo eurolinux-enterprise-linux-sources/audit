@@ -1,0 +1,12 @@
+diff -urp audit-2.3.8.orig/tools/auvirt/auvirt.c audit-2.3.8/tools/auvirt/auvirt.c
+--- audit-2.3.8.orig/tools/auvirt/auvirt.c	2014-06-25 17:28:37.212715683 -0400
++++ audit-2.3.8/tools/auvirt/auvirt.c	2014-06-17 15:31:29.000000000 -0400
+@@ -1201,7 +1201,7 @@ int process_anom(auparse_state_t *au)
+ 
+ 		for (it = events->tail; it; it = it->next) {
+ 			struct event *event = it->data;
+-			if (event->success &&
++			if (event->success && machine_id->uuid && event->uuid &&
+ 			    strcmp(machine_id->uuid, event->uuid) == 0) {
+ 				if (event->type == ET_STOP) {
+ 					break;

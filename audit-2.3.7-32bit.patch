@@ -1,0 +1,61 @@
+diff -urp audit-2.3.7.orig/src/ausearch-llist.h audit-2.3.7/src/ausearch-llist.h
+--- audit-2.3.7.orig/src/ausearch-llist.h	2014-06-03 12:06:01.000000000 -0400
++++ audit-2.3.7/src/ausearch-llist.h	2014-07-24 07:56:56.821999925 -0400
+@@ -54,7 +54,7 @@ typedef struct
+   success_t success;    // success flag, 1 = yes, 0 = no, -1 = unset
+   int arch;             // arch
+   int syscall;          // syscall
+-  int session_id;       // Login session id
++  uint32_t session_id;  // Login session id
+   int exit;             // Syscall exit code
+   int exit_is_set;      // Syscall exit code is valid
+   char *hostname;       // remote hostname
+diff -urp audit-2.3.7.orig/src/ausearch-options.c audit-2.3.7/src/ausearch-options.c
+--- audit-2.3.7.orig/src/ausearch-options.c	2014-06-03 12:06:00.000000000 -0400
++++ audit-2.3.7/src/ausearch-options.c	2014-07-24 07:58:15.197001445 -0400
+@@ -52,7 +52,7 @@ uid_t event_uid = -1, event_euid = -1, e
+ int event_syscall = -1, event_machine = -1;
+ int event_ua = 0, event_ga = 0, event_se = 0;
+ int just_one = 0;
+-int event_session_id = -2;
++uint32_t event_session_id = -2;
+ int event_exit = 0, event_exit_is_set = 0;
+ int line_buffered = 0;
+ int event_debug = 0;
+@@ -741,14 +741,14 @@ int check_params(int count, char *vars[]
+ 			size_t len = strlen(optarg);
+ 			if (isdigit(optarg[0])) {
+ 				errno = 0;
+-				event_session_id = strtol(optarg,NULL,10);
++				event_session_id = strtoul(optarg,NULL,10);
+ 				if (errno)
+ 					retval = -1;
+ 				c++;
+                         } else if (len >= 2 && *(optarg)=='-' &&
+                                                 (isdigit(optarg[1]))) {
+ 				errno = 0;
+-                                event_session_id = strtol(optarg, NULL, 0);
++                                event_session_id = strtoul(optarg, NULL, 0);
+ 				if (errno) {
+ 					retval = -1;
+ 					fprintf(stderr, "Error converting %s\n",
+diff -urp audit-2.3.7.orig/src/ausearch-options.h audit-2.3.7/src/ausearch-options.h
+--- audit-2.3.7.orig/src/ausearch-options.h	2014-06-03 12:06:00.000000000 -0400
++++ audit-2.3.7/src/ausearch-options.h	2014-07-24 07:59:14.249999019 -0400
+@@ -26,6 +26,7 @@
+ 
+ #include <time.h>
+ #include <sys/types.h>
++#include <stdint.h>
+ #include "ausearch-common.h"
+ #include "ausearch-int.h"
+ 
+@@ -38,7 +39,7 @@ extern int just_one;
+ extern int line_buffered;
+ extern int event_debug;
+ extern pid_t event_ppid;
+-extern int event_session_id;
++extern uint32_t event_session_id;
+ extern ilist *event_type;
+ 
+ /* Data type to govern output format */

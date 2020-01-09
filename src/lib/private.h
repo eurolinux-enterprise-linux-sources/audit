@@ -1,5 +1,5 @@
 /* private.h -- 
- * Copyright 2005,2006,2009 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005,2006,2009,2013 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -22,33 +22,16 @@
 #ifndef _PRIVATE_H_
 #define _PRIVATE_H_
 
+#include "dso.h"
+
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifdef PIC
-# define hidden __attribute__ ((visibility ("hidden")))
-# define hidden_proto(fct) __hidden_proto (fct, fct##_internal)
-# define __hidden_proto(fct, internal)  \
-     extern __typeof (fct) internal;    \
-     extern __typeof (fct) fct __asm (#internal) hidden;
-# if defined(__alpha__) || defined(__mips__)
-#  define hidden_def(fct) \
-     asm (".globl " #fct "\n" #fct " = " #fct "_internal");
-# else
-#  define hidden_def(fct) \
-     asm (".globl " #fct "\n.set " #fct ", " #fct "_internal");
-#endif
-#else
-# define hidden
-# define hidden_proto(fct)
-# define hidden_def(fct)
 #endif
 
 typedef enum { REAL_ERR, HIDE_IT } hide_t;
 
 /* Internal syslog messaging */
-void audit_msg(int priority, const char *fmt, ...) hidden
+void audit_msg(int priority, const char *fmt, ...) 
 #ifdef __GNUC__
 	__attribute__ ((format (printf, 2, 3)));
 #else
@@ -137,8 +120,7 @@ struct auditd_remote_message_wrapper {
 	seq = _AUDIT_RMW_GETN32 (header,12);
 
 /* General */
-extern int audit_send(int fd, int type, const void *data, unsigned int size)
-	hidden;
+extern int audit_send(int fd, int type, const void *data, unsigned int size);
 
 // This is the main messaging function used internally
 // Don't hide it, it used to be a part of the public API!
@@ -146,6 +128,11 @@ extern int audit_send_user_message(int fd, int type, hide_t hide_err,
 	const char *message);
 
 // libaudit.c
+extern int _audit_permadded;
+extern int _audit_archadded;
+extern int _audit_syscalladded;
+extern unsigned int _audit_elf;
+
 hidden_proto(audit_send_user_message);
 hidden_proto(audit_add_watch_dir);
 hidden_proto(audit_detect_machine);
@@ -167,7 +154,10 @@ hidden_proto(audit_name_to_ftype);
 
 // netlink.c
 hidden_proto(audit_get_reply);
+hidden_proto(audit_send)
 
+// message.c
+hidden_proto(audit_msg)
 
 #ifdef __cplusplus
 }

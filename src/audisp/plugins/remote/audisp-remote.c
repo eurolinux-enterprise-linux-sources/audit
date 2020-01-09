@@ -1,5 +1,5 @@
 /* audisp-remote.c --
- * Copyright 2008-2011 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2008-2012 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -537,8 +537,21 @@ int main(int argc, char *argv[])
 						quiet = 0;
 					}
 					/* Strip out EOE records */
-					if (strstr(event,"type=EOE msg=audit("))
-						continue;
+					if (*event == 't') {
+						if (strncmp(event,
+							"type=EOE", 8) == 0)
+							continue;
+					} else {
+						char *ptr = strchr(event, ' ');
+						if (ptr) {
+							ptr++;
+							if (strncmp(ptr,
+								"type=EOE",
+									8) == 0)
+								continue;
+						} else
+							continue; //malformed
+					}
 					if (q_append(queue, event) != 0) {
 						if (errno == ENOSPC)
 							do_overflow_action();
@@ -550,8 +563,12 @@ int main(int argc, char *argv[])
 			} while (remote_fgets_more(sizeof(event)));
 		}
 		// See if output fd is also set
-		if (sock > 0 && FD_ISSET(sock, &wfd)) 
-			send_one(queue);
+		if (sock > 0 && FD_ISSET(sock, &wfd)) {
+			// If so, try to drain backlog
+			while (q_queue_length(queue) && !suspend &&
+					!stop && transport_ok)
+				send_one(queue);
+		}
 	}
 	if (sock >= 0) {
 		shutdown(sock, SHUT_RDWR);
@@ -966,13 +983,16 @@ static int init_sock(void)
 	hints.ai_flags = AI_ADDRCONFIG|AI_NUMERICSERV;
 	hints.ai_socktype = SOCK_STREAM;
 	snprintf(remote, BUF_SIZE, "%u", config.port);
-	rc=getaddrinfo(config.remote_server, remote, &hints, &ai);
+	rc = getaddrinfo(config.remote_server, remote, &hints, &ai);
 	if (rc) {
 		if (!quiet)
 			syslog(LOG_ERR,
 				"Error looking up remote host: %s - exiting",
 				gai_strerror(rc));
-		return ET_PERMANENT;
+		if (rc == EAI_NONAME || rc == EAI_NODATA)
+			return ET_PERMANENT;
+		else
+			return ET_TEMPORARY;
 	}
 	sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 	if (sock < 0) {
@@ -1043,6 +1063,9 @@ static int init_transport(void)
 	{
 		case T_TCP:
 			rc = init_sock();
+			// We set this so that it will retry the connection
+			if (rc == ET_TEMPORARY)
+				remote_ended = 1;
 			break;
 		default:
 			rc = ET_PERMANENT;
@@ -1139,7 +1162,9 @@ static int send_msg_gss (unsigned char *header, const char *msg, uint32_t mlen)
 	utok.value = malloc (utok.length);
 
 	memcpy (utok.value, header, AUDIT_RMW_HEADER_SIZE);
-	memcpy (utok.value+AUDIT_RMW_HEADER_SIZE, msg, mlen);
+	
+	if (msg != NULL && mlen > 0)
+		memcpy (utok.value+AUDIT_RMW_HEADER_SIZE, msg, mlen);
 
 	major_status = gss_wrap (&minor_status,
 				 my_context,

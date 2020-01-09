@@ -1,5 +1,5 @@
 /* libaudit.h -- 
- * Copyright 2004-2011 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-2013 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -186,6 +186,7 @@ extern "C" {
 #define AUDIT_FS_RELABEL		2309 /* Filesystem relabeled */
 #define AUDIT_USER_MAC_POLICY_LOAD	2310 /* Userspc daemon loaded policy */
 #define AUDIT_ROLE_MODIFY		2311 /* Admin modified a role */
+#define AUDIT_USER_MAC_CONFIG_CHANGE	2312 /* Change made to MAC policy */
 
 #define AUDIT_FIRST_CRYPTO_MSG		2400
 #define AUDIT_CRYPTO_TEST_USER		2400 /* Crypto test results */
@@ -224,6 +225,22 @@ extern "C" {
 #define AUDIT_NETFILTER_CFG	1325 /* Netfilter chain modifications */
 #endif
 
+#ifndef AUDIT_SECCOMP
+#define AUDIT_SECCOMP		1326 /* Secure Computing event */
+#endif
+
+#ifndef AUDIT_PROCTITLE
+#define AUDIT_PROCTITLE		1327 /* Process Title info */
+#endif
+
+#undef AUDIT_FEATURE_CHANGE
+#ifndef AUDIT_FEATURE_CHANGE
+#define AUDIT_FEATURE_CHANGE	1328 /* Audit feature changed value */
+#endif
+
+#ifndef AUDIT_ANOM_LINK
+#define AUDIT_ANOM_LINK		1702 /* Suspicious use of file links */
+#endif
 
 /* This is related to the filterkey patch */
 #define AUDIT_KEY_SEPARATOR 0x01
@@ -320,6 +337,18 @@ extern "C" {
 #define AUDIT_COMPARE_SGID_TO_FSGID    25
 #endif
 
+#ifndef EM_ARM
+#define EM_ARM  40
+#endif
+#ifndef EM_AARCH64
+#define EM_AARCH64 183
+#endif
+
+#ifndef AUDIT_ARCH_AARCH64
+#define AUDIT_ARCH_AARCH64	(EM_AARCH64|__AUDIT_ARCH_64BIT|__AUDIT_ARCH_LE)
+#endif
+
+
 //////////////////////////////////////////////////////
 // This is an external ABI. Any changes in here will
 // likely affect pam_loginuid. There might be other
@@ -397,7 +426,8 @@ typedef enum {
 	MACH_S390X,
 	MACH_S390,
 	MACH_ALPHA,
-	MACH_ARMEB
+	MACH_ARM,
+	MACH_AARCH64
 } machine_t;
 
 /* These are the valid audit failure tunable enum values */
@@ -421,6 +451,7 @@ extern int  audit_get_reply(int fd, struct audit_reply *rep, reply_t block,
 extern uid_t audit_getloginuid(void);
 extern int  audit_setloginuid(uid_t uid);
 extern int  audit_detect_machine(void);
+extern int audit_determine_machine(const char *arch);
 
 /* Translation functions */
 extern int        audit_name_to_field(const char *field);

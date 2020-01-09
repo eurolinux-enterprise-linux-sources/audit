@@ -1,5 +1,5 @@
 /* auditd-event.c -- 
- * Copyright 2004-08,2011 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-08,2011,2013 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -705,13 +705,22 @@ static void rotate_logs(struct auditd_consumer_data *data,
 	unsigned int len, i;
 	char *oldname, *newname;
 
-	if (data->config->num_logs < 2)
+	if (data->config->max_log_size_action == SZ_ROTATE &&
+				data->config->num_logs < 2)
 		return;
 
-	/* Close audit file */
-	fchmod(data->log_fd, 
-			data->config->log_group ? S_IRUSR|S_IRGRP : S_IRUSR);
-	fchown(data->log_fd, 0, data->config->log_group);
+	/* Close audit file. fchmod and fchown errors are not fatal because we
+	 * already adjusted log file permissions and ownership when opening the
+	 * log file. */
+	if (fchmod(data->log_fd, data->config->log_group ? S_IRUSR|S_IRGRP :
+								S_IRUSR) < 0) {
+		audit_msg(LOG_NOTICE, "Couldn't change permissions while "
+			"rotating log file (%s)", strerror(errno));
+	}
+	if (fchown(data->log_fd, 0, data->config->log_group) < 0) {
+		audit_msg(LOG_NOTICE, "Couldn't change ownership while "
+			"rotating log file (%s)", strerror(errno));
+	}
 	fclose(data->log_file);
 	
 	/* Rotate */
@@ -924,9 +933,20 @@ retry:
 			return 1;
 		}
 	}
-	fchmod(lfd, data->config->log_group ? S_IRUSR|S_IWUSR|S_IRGRP : 
-						S_IRUSR|S_IWUSR);
-	fchown(lfd, 0, data->config->log_group);
+	if (fchmod(lfd, data->config->log_group ? S_IRUSR|S_IWUSR|S_IRGRP :
+							S_IRUSR|S_IWUSR) < 0) {
+		audit_msg(LOG_ERR,
+			"Couldn't change permissions of log file (%s)",
+			strerror(errno));
+		close(lfd);
+		return 1;
+	}
+	if (fchown(lfd, 0, data->config->log_group) < 0) {
+		audit_msg(LOG_ERR, "Couldn't change ownership of log file (%s)",
+			strerror(errno));
+		close(lfd);
+		return 1;
+	}
 
 	data->log_fd = lfd;
 	data->log_file = fdopen(lfd, "a");
@@ -946,6 +966,7 @@ static void change_runlevel(const char *level)
 {
 	char *argv[3];
 	int pid;
+	struct sigaction sa;
 	static const char *init_pgm = "/sbin/init";
 
 	pid = fork();
@@ -957,6 +978,9 @@ static void change_runlevel(const char *level)
 	if (pid)	/* Parent */
 		return;
 	/* Child */
+	sigfillset (&sa.sa_mask);
+	sigprocmask (SIG_UNBLOCK, &sa.sa_mask, 0);
+
 	argv[0] = (char *)init_pgm;
 	argv[1] = (char *)level;
 	argv[2] = NULL;
@@ -969,6 +993,7 @@ static void safe_exec(const char *exe)
 {
 	char *argv[2];
 	int pid;
+	struct sigaction sa;
 
 	if (exe == NULL) {
 		audit_msg(LOG_ALERT,
@@ -985,6 +1010,9 @@ static void safe_exec(const char *exe)
 	if (pid)	/* Parent */
 		return;
 	/* Child */
+        sigfillset (&sa.sa_mask);
+        sigprocmask (SIG_UNBLOCK, &sa.sa_mask, 0);
+
 	argv[0] = (char *)exe;
 	argv[1] = NULL;
 	execve(exe, argv, NULL);
@@ -1089,8 +1117,14 @@ static void reconfigure(struct auditd_consumer_data *data)
 
 	// priority boost
 	if (oconf->priority_boost != nconf->priority_boost) {
+		int rc;
+
 		oconf->priority_boost = nconf->priority_boost;
-		nice(-oconf->priority_boost);
+		errno = 0;
+		rc = nice(-oconf->priority_boost);
+		if (rc == -1 && errno) 
+			audit_msg(LOG_NOTICE, "Cannot change priority in "
+					"reconfigure (%s)", strerror(errno));
 	}
 
 	// log format
@@ -1171,33 +1205,14 @@ static void reconfigure(struct auditd_consumer_data *data)
 		}
 		// they are the same app - just signal it
 		else {
-			reconfigure_dispatcher();
+			reconfigure_dispatcher(oconf);
 			free((char *)nconf->dispatcher);
 			nconf->dispatcher = NULL;
 		}
 	}
 
-	/* Look at network things that do not need restarting */
-	if (oconf->tcp_client_min_port != nconf->tcp_client_min_port ||
-		    oconf->tcp_client_max_port != nconf->tcp_client_max_port ||
-		    oconf->tcp_max_per_addr != nconf->tcp_max_per_addr) {
-		oconf->tcp_client_min_port = nconf->tcp_client_min_port;
-		oconf->tcp_client_max_port = nconf->tcp_client_max_port;
-		oconf->tcp_max_per_addr = nconf->tcp_max_per_addr;
-		auditd_set_ports(oconf->tcp_client_min_port,
-				oconf->tcp_client_max_port,
-				oconf->tcp_max_per_addr);
-	}
-	if (oconf->tcp_client_max_idle != nconf->tcp_client_max_idle) {
-		oconf->tcp_client_max_idle = nconf->tcp_client_max_idle;
-		periodic_reconfigure();
-	}
-	if (oconf->tcp_listen_port != nconf->tcp_listen_port ||
-			oconf->tcp_listen_queue != nconf->tcp_listen_queue) {
-		oconf->tcp_listen_port = nconf->tcp_listen_port;
-		oconf->tcp_listen_queue = nconf->tcp_listen_queue;
-		// FIXME: need to restart the network stuff
-	}
+	// network listener
+	auditd_tcp_listen_reconfigure(nconf, oconf);
 	
 	/* At this point we will work on the items that are related to 
 	 * a single log file. */

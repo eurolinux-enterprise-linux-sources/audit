@@ -1,5 +1,5 @@
 /* msg_typetab.h --
- * Copyright 2005-07,2009-11 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-07,2009-13 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -24,7 +24,8 @@
  * This table is arranged from lowest number to highest number. The
  * items that are commented out are for completeness. The audit 
  * daemon filters these and they never show up in the logs, therefore
- * they are not needed for reporting.
+ * they are not needed for reporting. Or they have been deprecated for
+ * a long time.
  */
 //_S(AUDIT_GET,                      "GET"                           )
 //_S(AUDIT_SET,                      "SET"                           )
@@ -107,6 +108,9 @@ _S(AUDIT_CAPSET,                     "CAPSET"                        )
 _S(AUDIT_MMAP,                       "MMAP"                          )
 _S(AUDIT_NETFILTER_PKT,              "NETFILTER_PKT"                 )
 _S(AUDIT_NETFILTER_CFG,              "NETFILTER_CFG"                 )
+_S(AUDIT_SECCOMP,                    "SECCOMP"                       )
+_S(AUDIT_PROCTITLE,                  "PROCTITLE"                     )
+_S(AUDIT_FEATURE_CHANGE,             "FEATURE_CHANGE"                )
 _S(AUDIT_AVC,                        "AVC"                           )
 _S(AUDIT_SELINUX_ERR,                "SELINUX_ERR"                   )
 _S(AUDIT_AVC_PATH,                   "AVC_PATH"                      )
@@ -127,6 +131,7 @@ _S(AUDIT_MAC_UNLBL_STCADD,           "MAC_UNLBL_STCADD"              )
 _S(AUDIT_MAC_UNLBL_STCDEL,           "MAC_UNLBL_STCDEL"              )
 _S(AUDIT_ANOM_PROMISCUOUS,           "ANOM_PROMISCUOUS"              )
 _S(AUDIT_ANOM_ABEND,                 "ANOM_ABEND"                    )
+_S(AUDIT_ANOM_LINK,                  "ANOM_LINK"                     )
 _S(AUDIT_INTEGRITY_DATA,             "INTEGRITY_DATA"                )
 _S(AUDIT_INTEGRITY_METADATA,         "INTEGRITY_METADATA"            )
 _S(AUDIT_INTEGRITY_STATUS,           "INTEGRITY_STATUS"              )
@@ -187,6 +192,7 @@ _S(AUDIT_DEV_DEALLOC,                "DEV_DEALLOC"                   )
 _S(AUDIT_FS_RELABEL,                 "FS_RELABEL"                    )
 _S(AUDIT_USER_MAC_POLICY_LOAD,       "USER_MAC_POLICY_LOAD"          )
 _S(AUDIT_ROLE_MODIFY,                "ROLE_MODIFY"                   )
+_S(AUDIT_USER_MAC_CONFIG_CHANGE,     "USER_MAC_CONFIG_CHANGE"        )
 _S(AUDIT_CRYPTO_TEST_USER,           "CRYPTO_TEST_USER"              )
 _S(AUDIT_CRYPTO_PARAM_CHANGE_USER,   "CRYPTO_PARAM_CHANGE_USER"      )
 _S(AUDIT_CRYPTO_LOGIN,               "CRYPTO_LOGIN"                  )

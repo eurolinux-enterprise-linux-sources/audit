@@ -1,7 +1,7 @@
 dnl
 define([AC_INIT_NOTICE],
 [### Generated automatically using autoconf version] AC_ACVERSION [
-### Copyright 2005-12 Steve Grubb <sgrubb@redhat.com>
+### Copyright 2005-14 Steve Grubb <sgrubb@redhat.com>
 ###
 ### Permission is hereby granted, free of charge, to any person obtaining a
 ### copy of this software and associated documentation files (the "Software"),
@@ -29,7 +29,7 @@ define([AC_INIT_NOTICE],
 ])
 
 AC_REVISION($Revision: 1.3 $)dnl
-AC_INIT(audit,2.2)
+AC_INIT(audit,2.3.7)
 AC_PREREQ(2.12)dnl
 AM_CONFIG_HEADER(config.h)
 
@@ -62,6 +62,7 @@ AC_C_INLINE
 AC_CHECK_SIZEOF([unsigned int])
 AC_CHECK_SIZEOF([unsigned long])
 AM_PROG_CC_C_O
+AC_CHECK_DECLS([MS_DIRSYNC], [], [], [[#include <sys/mount.h>]])
 
 ALLWARNS=""
 ALLDEBUG="-g"
@@ -103,6 +104,20 @@ fi
 fi
 AM_CONDITIONAL(HAVE_PYTHON, test ${python_found} = "yes")
 
+#auditd listener
+AC_MSG_CHECKING(whether to include auditd network listener support)
+AC_ARG_ENABLE(listener,
+	      [AS_HELP_STRING([--disable-listener],
+			      [Disable auditd network listener support])],
+	      enable_listener=$enableval,
+	      enable_listener=yes)
+if test "x$enable_listener" != "xno"; then
+	AC_DEFINE(USE_LISTENER, 1,
+		  [Define if you want to use the auditd network listener.])
+fi
+AM_CONDITIONAL(ENABLE_LISTENER, test "x$enable_listener" != "xno")
+AC_MSG_RESULT($enable_listener)
+
 #gssapi
 AC_ARG_ENABLE(gssapi_krb5,
 	[AS_HELP_STRING([--enable-gssapi-krb5],[Enable GSSAPI Kerberos 5 support @<:@default=no@:>@])],
@@ -124,6 +139,18 @@ if test $want_gssapi_krb5 = yes; then
 	])
 fi
 AM_CONDITIONAL(ENABLE_GSSAPI, test x$want_gssapi_krb5 = xyes)
+
+#systemd
+AC_ARG_ENABLE(systemd,
+	[AS_HELP_STRING([--enable-systemd],[Enable systemd init scripts @<:@default=no@:>@])],
+        [case "${enableval}" in
+         yes) want_systemd="yes" ;;
+          no) want_systemd="no" ;;
+           *) AC_MSG_ERROR(bad value ${enableval} for --enable-systemd) ;;
+         esac],
+	[want_systemd="no"]
+)
+AM_CONDITIONAL(ENABLE_SYSTEMD, test x$want_systemd = xyes)
 
 ALLDEBUG="-g"
 AC_ARG_WITH(debug,
@@ -157,22 +184,31 @@ use_alpha=$withval,
 use_alpha=no)
 if test x$use_alpha != xno ; then
       AC_DEFINE(WITH_ALPHA,1,[Define if you want to enable Alpha processor support.])
-else
-	AC_MSG_RESULT(no)
 fi
 AM_CONDITIONAL(USE_ALPHA, test x$use_alpha = xyes)
+AC_MSG_RESULT($use_alpha)
 
 AC_MSG_CHECKING(whether to include arm eabi processor support)
-AC_ARG_WITH(armeb,
-AS_HELP_STRING([--with-armeb],[enable Arm eabi processor support]),
-use_armeb=$withval,
-use_armeb=no)
-if test x$use_armeb != xno ; then
-      AC_DEFINE(WITH_ARMEB,1,[Define if you want to enable Arm eabi processor support.])
-else
-	AC_MSG_RESULT(no)
+AC_ARG_WITH(arm,
+AS_HELP_STRING([--with-arm],[enable Arm eabi processor support]),
+use_arm=$withval,
+use_arm=no)
+if test x$use_arm != xno ; then
+      AC_DEFINE(WITH_ARM,1,[Define if you want to enable Arm eabi processor support.])
 fi
-AM_CONDITIONAL(USE_ARMEB, test x$use_armeb = xyes)
+AM_CONDITIONAL(USE_ARM, test x$use_arm = xyes)
+AC_MSG_RESULT($use_arm)
+
+AC_MSG_CHECKING(whether to include aarch64 processor support)
+AC_ARG_WITH(aarch64,
+AS_HELP_STRING([--with-aarch64],[enable Aarch64 processor support]),
+use_aarch64=$withval,
+use_aarch64=no)
+if test x$use_aarch64 != xno ; then
+      AC_DEFINE(WITH_AARCH64,1,[Define if you want to enable Aarch64 processor support.])
+fi
+AM_CONDITIONAL(USE_AARCH64, test x$use_aarch64 = xyes)
+AC_MSG_RESULT($use_aarch64)
 
 AC_MSG_CHECKING(whether to use apparmor)
 AC_ARG_WITH(apparmor,
@@ -181,17 +217,17 @@ use_apparmor=$withval,
 use_apparmor=no)
 if test x$use_apparmor != xno ; then
       AC_DEFINE(WITH_APPARMOR,1,[Define if you want to enable AppArmor events.])
-else
-	AC_MSG_RESULT(no)
 fi
+AC_MSG_RESULT($use_apparmor)
 
+AC_MSG_CHECKING(whether to use prelude)
 AC_ARG_WITH(prelude,
 AS_HELP_STRING([--with-prelude],[enable prelude IDS support]),
 use_prelude=$withval,
 use_prelude=no)
+AC_MSG_RESULT($use_prelude)
 if test x$use_prelude = xno ; then
 	have_prelude=no;
-	AC_MSG_RESULT(no)
 else
       AC_CHECK_LIB(prelude, prelude_init,
                  have_prelude=yes, have_prelude=no)
@@ -200,7 +236,7 @@ else
       else
 	LIBPRELUDE_CFLAGS=`libprelude-config --pthread-cflags 2>/dev/null`
 	LIBPRELUDE_LDFLAGS=`libprelude-config --ldflags 2>/dev/null`
-
+        AC_MSG_RESULT(yes)
       fi
 fi
 AM_CONDITIONAL(HAVE_PRELUDE, test x$have_prelude = xyes)
@@ -251,7 +287,7 @@ LIBCAP_NG_PATH
 
 AC_SUBST(DEBUG)
 AC_SUBST(LIBWRAP_LIBS)
-AC_SUBST(libev_LIBS)
+#AC_SUBST(libev_LIBS)
 AC_SUBST(LIBPRELUDE_CFLAGS)
 AC_SUBST(LIBPRELUDE_LDFLAGS)
 

@@ -1,5 +1,5 @@
 /* s390_table.h --
- * Copyright 2005-11 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-14 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -337,3 +337,10 @@ _S(336, "open_by_handle_at")
 _S(337, "clock_adjtime")
 _S(338, "syncfs")
 _S(339, "setns")
+_S(340, "process_vm_readv")
+_S(341, "process_vm_writev")
+_S(342, "s390_runtime_instr")
+_S(343, "kcmp")
+_S(344, "finit_module")
+_S(345, "sched_setattr")
+_S(346, "sched_getattr")

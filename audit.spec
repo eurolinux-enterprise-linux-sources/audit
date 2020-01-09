@@ -2,14 +2,15 @@
 
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
-Version: 2.2
-Release: 4%{?dist}
+Version: 2.3.7
+Release: 5%{?dist}
 License: GPLv2+
 Group: System Environment/Daemons
 URL: http://people.redhat.com/sgrubb/audit/
 Source0: http://people.redhat.com/sgrubb/audit/%{name}-%{version}.tar.gz
-Patch1: audit-2.2.1-node.patch
-Patch2: audit-2.3-remote.patch
+Patch1: audit-2.3.8-auvirt.patch
+Patch2: audit-2.3.7-32bit.patch
+Patch3: audit-2.3.7-mcs.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: swig python-devel
 BuildRequires: tcp_wrappers-devel libcap-ng-devel 
@@ -83,9 +84,10 @@ behavior.
 %setup -q
 %patch1 -p1
 %patch2 -p1
+%patch3 -p1
 
 %build
-%configure --sbindir=/sbin --libdir=/%{_lib} --with-libwrap --enable-gssapi-krb5=no --with-libcap-ng=yes
+%configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes --with-libwrap --enable-gssapi-krb5=no --with-libcap-ng=yes
 make %{?_smp_mflags}
 
 %install
@@ -136,6 +138,10 @@ rm -rf $RPM_BUILD_ROOT
 %post libs -p /sbin/ldconfig
 
 %post
+# Copy default rules into place on new installation
+if [ ! -e /etc/audit/audit.rules ] ; then
+    cp /etc/audit/rules.d/audit.rules /etc/audit/audit.rules
+fi
 /sbin/chkconfig --add auditd
 
 %preun
@@ -191,6 +197,7 @@ fi
 %attr(644,root,root) %{_mandir}/man8/aulast.8.gz
 %attr(644,root,root) %{_mandir}/man8/aulastlog.8.gz
 %attr(644,root,root) %{_mandir}/man8/auvirt.8.gz
+%attr(644,root,root) %{_mandir}/man8/augenrules.8.gz
 %attr(644,root,root) %{_mandir}/man8/ausyscall.8.gz
 %attr(644,root,root) %{_mandir}/man7/audit.rules.7.gz
 %attr(644,root,root) %{_mandir}/man5/auditd.conf.5.gz
@@ -202,6 +209,7 @@ fi
 %attr(755,root,root) /sbin/aureport
 %attr(750,root,root) /sbin/autrace
 %attr(750,root,root) /sbin/audispd
+%attr(750,root,root) /sbin/augenrules
 %attr(755,root,root) %{_bindir}/aulast
 %attr(755,root,root) %{_bindir}/aulastlog
 %attr(755,root,root) %{_bindir}/ausyscall
@@ -209,11 +217,13 @@ fi
 %attr(755,root,root) /etc/rc.d/init.d/auditd
 %attr(750,root,root) %dir %{_var}/log/audit
 %attr(750,root,root) %dir /etc/audit
+%attr(750,root,root) %dir /etc/audit/rules.d
 %attr(750,root,root) %dir /etc/audisp
 %attr(750,root,root) %dir /etc/audisp/plugins.d
 %attr(750,root,root) %dir %{_libdir}/audit
 %config(noreplace) %attr(640,root,root) /etc/audit/auditd.conf
-%config(noreplace) %attr(640,root,root) /etc/audit/audit.rules
+%config(noreplace) %attr(640,root,root) /etc/audit/rules.d/audit.rules
+%ghost %config(noreplace) %attr(640,root,root) /etc/audit/audit.rules
 %config(noreplace) %attr(640,root,root) /etc/sysconfig/auditd
 %config(noreplace) %attr(640,root,root) /etc/audisp/audispd.conf
 %config(noreplace) %attr(640,root,root) /etc/audisp/plugins.d/af_unix.conf
@@ -234,9 +244,46 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
-* Thu Feb 13 2014 Steve Grubb <sgrubb@redhat.com> 2.2-4.el6_5
-resolves: #1042734 audisp-remote reconnect problems after transient network err
+* Sun Aug 10 2014 Steve Grubb <sgrubb@redhat.com> 2.3.7-5
+resolves: #1049916 - ajusted patch doing MCS translations
 
+* Mon Jul 28 2014 Steve Grubb <sgrubb@redhat.com> 2.3.7-4
+resolves: #1049916 - Handle i386 session ID's better
+resolves: #1120286 - ausearch -i does not display commas between categories
+
+* Wed Jul 02 2014 Steve Grubb <sgrubb@redhat.com> 2.3.7-3
+resolves: #1111448 - Segmentation fault while run auvirt --all-events sometimes
+
+* Mon Jun 09 2014 Steve Grubb <sgrubb@redhat.com> 2.3.7-2
+Ghost audit.rules file
+resolves: #967238 - Audit rules are built from a directory of rule files
+
+* Tue Jun 03 2014 Steve Grubb <sgrubb@redhat.com> 2.3.7-1
+- New upstream enhancement and bugfix release
+resolves: #1065067 - Audit package rebase
+resolves: #810749 - audit allows tcp_max_per_addr + 1 connections
+resolves: #869555 - ausearch -i does not interpret execve arguments always
+resolves: #888348 - auditd won't start when some actions send mail
+resolves: #922508 - confusing aulast records for bad logins
+resolves: #950158 - man page unclear wrt num_logs affecting keep_logs setting
+resolves: #967238 - Audit rules are built from a directory of rule files
+resolves: #967240 - ausearch to checkpoint so only reports new events
+resolves: #970675 - auparse is truncating path context after first category
+resolves: #1011052 - Missing text in auditd.conf man page
+resolves: #1022035 - Case values for actions unclear in auditd.conf man page
+resolves: #1029981 - ausearch help typo for "-x" option
+resolves: #1049916 - ausearch issues found by ausearch-test
+resolves: #1053424 - Error in auparse-defs.h
+resolves: #1071580 - audispd config file parser fails on long input
+resolves: #1089713 - limit of 30 for system call in audit.rules
+
+* Mon Jan 27 2014 Steve Grubb <sgrubb@redhat.com> 2.2-4
+- Revised patch based on upstream commit 895
+resolves: #1028635 audisp-remote reconnect problems after transient network err
+ 
+* Thu Dec 12 2013 Steve Grubb <sgrubb@redhat.com> 2.2-3
+resolves: #1028635 audisp-remote reconnect problems after transient network err
+ 
 * Tue Mar 13 2012 Steve Grubb <sgrubb@redhat.com> 2.2-2
 resolves: #803349 allocate extra space for node names
  

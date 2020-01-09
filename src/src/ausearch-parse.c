@@ -1,6 +1,6 @@
 /*
 * ausearch-parse.c - Extract interesting fields and check for match
-* Copyright (c) 2005-08, 2011 Red Hat Inc., Durham, North Carolina.
+* Copyright (c) 2005-08,2011,2013-14 Red Hat Inc., Durham, North Carolina.
 * Copyright (c) 2011 IBM Corp. 
 * All Rights Reserved. 
 *
@@ -109,6 +109,7 @@ int extract_search_items(llist *l)
 			case AUDIT_LOGIN:
 				ret = parse_login(n, s);
 				break;
+			case AUDIT_IPC:
 			case AUDIT_OBJ_PID:
 				ret = parse_obj(n, s);
 				break;
@@ -126,6 +127,10 @@ int extract_search_items(llist *l)
 				break;
 			case AUDIT_CONFIG_CHANGE:
 				ret = parse_simple_message(n, s);
+				// We use AVC parser because it just looks for
+				// the one field. We don't care about return
+				// code since older events don't have path=
+				avc_parse_path(n, s);
 				break;
 			case AUDIT_AVC:
 				ret = parse_avc(n, s);
@@ -133,6 +138,7 @@ int extract_search_items(llist *l)
 			case AUDIT_NETFILTER_PKT:
 				ret = parse_pkt(n, s);
 				break;
+			case AUDIT_SECCOMP:
 			case
 			   AUDIT_FIRST_KERN_ANOM_MSG...AUDIT_LAST_KERN_ANOM_MSG:
 				ret = parse_kernel_anom(n, s);
@@ -144,10 +150,17 @@ int extract_search_items(llist *l)
 				ret = parse_integrity(n, s);
 				break;
 			case AUDIT_KERNEL:
-			case AUDIT_IPC:
 			case AUDIT_SELINUX_ERR:
 			case AUDIT_EXECVE:
+			case AUDIT_IPC_SET_PERM:
+			case AUDIT_MQ_OPEN:
+			case AUDIT_MQ_SENDRECV:
+			case AUDIT_MQ_NOTIFY:
+			case AUDIT_MQ_GETSETATTR:
+			case AUDIT_FD_PAIR:
 			case AUDIT_BPRM_FCAPS:
+			case AUDIT_CAPSET:
+			case AUDIT_MMAP:
 			case AUDIT_NETFILTER_CFG:
 				// Nothing to parse
 				break;
@@ -155,11 +168,17 @@ int extract_search_items(llist *l)
 				ret = parse_tty(n, s);
 				break;
 			default:
-				// printf("unparsed type:%d\n", n->type);
+				if (event_debug)
+					fprintf(stderr,
+						"Unparsed type:%d\n - skipped",
+						n->type);
 				break;
 			}
-			// if (ret) printf("type:%d ret:%d\n", n->type, ret);
-		} while ((n=list_next(l)) && ret==0);
+			if (event_debug && ret)
+				fprintf(stderr,
+					"Malformed event skipped, rc=%d. %s\n",
+					 ret, n->message);
+		} while ((n=list_next(l)) && ret == 0);
 	}
 	return ret;
 }
@@ -244,6 +263,21 @@ static int parse_syscall(lnode *n, search_items *s)
 	errno = 0;
 	// 64 bit dump on 32 bit machine looks bad here - need long long
 	n->a0 = strtoull(ptr, NULL, 16); // Hex
+	if (errno)
+		return 13;
+	*term = ' ';
+	// get a1
+	str = strstr(term, "a1=");
+	if (str == NULL)
+		return 11;
+	ptr = str + 3;
+	term = strchr(ptr, ' ');
+	if (term == NULL)
+		return 12;
+	*term = 0;
+	errno = 0;
+	// 64 bit dump on 32 bit machine looks bad here - need long long
+	n->a1 = strtoull(ptr, NULL, 16); // Hex
 	if (errno)
 		return 13;
 	*term = ' ';
@@ -565,22 +599,28 @@ static int common_path_parser(search_items *s, char *path)
 			snode sn;
 			sn.key = NULL;
 			sn.hits = 1;
-			if (strcmp(path, "(null)")) {
-				sn.str = strdup(path);
+			if (strncmp(path, "(null)", 6) == 0) {
+				sn.str = strdup("(null)");
 				goto append;
 			}
 			if (!isxdigit(path[0]))
 				return 4;
 			if (path[0] == '0' && path[1] == '0')
 				sn.str = unescape(&path[2]); // Abstract name
-			else
+			else {
+				term = strchr(path, ' ');
+				if (term == NULL)
+					return 5;
+				*term = 0;
 				sn.str = unescape(path);
+				*term = ' ';
+			}
 			// Attempt to rebuild path if relative
 			if ((sn.str[0] == '.') && ((sn.str[1] == '.') ||
 				(sn.str[1] == '/')) && s->cwd) {
 				char *tmp = malloc(PATH_MAX);
 				if (tmp == NULL)
-					return 5;
+					return 6;
 				snprintf(tmp, PATH_MAX, "%s/%s", 
 					s->cwd, sn.str);
 				free(sn.str);
@@ -798,6 +838,44 @@ static int parse_user(const lnode *n, search_items *s)
 			*term = 0;
 			s->uuid = strdup(str);
 			*term = saved;
+		}
+	}
+	if (event_subject) {
+		str = strstr(term, "vm-ctx=");
+		if (str != NULL) {
+			str += 7;
+			term = strchr(str, ' ');
+			if (term == NULL)
+				return 27;
+			*term = 0;
+			if (audit_avc_init(s) == 0) {
+				anode an;
+
+				anode_init(&an);
+				an.scontext = strdup(str);
+				alist_append(s->avc, &an);
+				*term = ' ';
+			} else
+				return 28;
+		}
+	}
+	if (event_object) {
+		str = strstr(term, "img-ctx=");
+		if (str != NULL) {
+			str += 8;
+			term = strchr(str, ' ');
+			if (term == NULL)
+				return 29;
+			*term = 0;
+			if (audit_avc_init(s) == 0) {
+				anode an;
+
+				anode_init(&an);
+				an.tcontext = strdup(str);
+				alist_append(s->avc, &an);
+				*term = ' ';
+			} else
+				return 30;
 		}
 	}
 	// get uid - some records the second uid is what we want.
@@ -1070,14 +1148,41 @@ static int parse_login(const lnode *n, search_items *s)
 	s->uid = strtoul(ptr, NULL, 10);
 	if (errno)
 		return 6;
-	// get loginuid
 	*term = ' ';
+	// optionally get subj
+	if (event_subject) {
+		str = strstr(term, "subj=");
+		if (str) {
+			ptr = str + 5;
+			term = strchr(ptr, ' ');
+			if (term == NULL)
+				return 12;
+			*term = 0;
+			if (audit_avc_init(s) == 0) {
+				anode an;
+
+				anode_init(&an);
+				an.scontext = strdup(str);
+				alist_append(s->avc, &an);
+				*term = ' ';
+			} else
+				return 13;
+			*term = ' ';
+		}
+	}
+	// get loginuid
 	str = strstr(term, "new auid=");
 	if (str == NULL) {
-		str = strstr(term, "new loginuid=");
-		if (str == NULL)
-			return 7;
-		ptr = str + 13;
+		// 3.14 kernel changed it to the next line
+		str = strstr(term, " auid=");
+		if (str == NULL) {
+			str = strstr(term, "new loginuid=");
+			if (str == NULL)
+				return 7;
+			ptr = str + 13;
+		}
+		else
+			ptr = str + 6;
 	} else
 		ptr = str + 9;
 	term = strchr(ptr, ' ');
@@ -1112,18 +1217,24 @@ static int parse_login(const lnode *n, search_items *s)
 		if (term == NULL)
 			term = n->message;
 		str = strstr(term, "new ses=");
-		if (str) {
-			ptr = str + 8;
-			term = strchr(ptr, ' ');
-			if (term)
-				*term = 0;
-			errno = 0;
-			s->session_id = strtoul(ptr, NULL, 10);
-			if (errno)
-				return 11;
-			if (term)
-				*term = ' ';
+		if (str == NULL) {
+			// The 3.14 kernel changed it to the next line
+			str = strstr(term, " ses=");
+			if (str == NULL)
+				return 14;
+			ptr = str + 5;
 		}
+		else
+			ptr = str + 8;
+		term = strchr(ptr, ' ');
+		if (term)
+			*term = 0;
+		errno = 0;
+		s->session_id = strtoul(ptr, NULL, 10);
+		if (errno)
+			return 11;
+		if (term)
+			*term = ' ';
 	}
 	return 0;
 }
@@ -1177,18 +1288,18 @@ static int parse_daemon1(const lnode *n, search_items *s)
 		if (str != NULL) {
 			str += 5;
 			term = strchr(str, ' ');
-			if (term == NULL)
-				return 7;
-			*term = 0;
+			if (term)
+				*term = 0;
 			if (audit_avc_init(s) == 0) {
 				anode an;
 
 				anode_init(&an);
 				an.scontext = strdup(str);
 				alist_append(s->avc, &an);
-				*term = ' ';
 			} else
-				return 8;
+				return 7;
+			if (term)
+				*term = ' ';
 		}
 	}
 
@@ -1579,6 +1690,15 @@ static int parse_avc(const lnode *n, search_items *s)
 			if (rc)
 				goto err;
 			term += 7;
+		} else {
+			str = strstr(term, " name=");
+			if (str) {
+				str += 6;
+				rc = common_path_parser(s, str);
+				if (rc)
+					goto err;
+				term += 7;
+			}
 		}
 	}
 	if (event_subject) {
@@ -1761,6 +1881,37 @@ static int parse_kernel_anom(const lnode *n, search_items *s)
 			} else 
 				s->comm = unescape(str);
 		} 
+	}
+
+	if (n->type == AUDIT_SECCOMP) {
+		// get arch
+		str = strstr(term, "arch=");
+		if (str == NULL) 
+			return 0;	// A few kernel versions don't have it
+		ptr = str + 5;
+		term = strchr(ptr, ' ');
+		if (term == NULL) 
+			return 12;
+		*term = 0;
+		errno = 0;
+		s->arch = (int)strtoul(ptr, NULL, 16);
+		if (errno) 
+			return 13;
+		*term = ' ';
+		// get syscall
+		str = strstr(term, "syscall=");
+		if (str == NULL)
+			return 14;
+		ptr = str + 8;
+		term = strchr(ptr, ' ');
+		if (term == NULL)
+			return 15;
+		*term = 0;
+		errno = 0;
+		s->syscall = (int)strtoul(ptr, NULL, 10);
+		if (errno)
+			return 16;
+		*term = ' ';
 	}
 
 	return 0;
