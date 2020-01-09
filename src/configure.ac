@@ -1,7 +1,7 @@
 dnl
 define([AC_INIT_NOTICE],
 [### Generated automatically using autoconf version] AC_ACVERSION [
-### Copyright 2005-17 Steve Grubb <sgrubb@redhat.com>
+### Copyright 2005-18 Steve Grubb <sgrubb@redhat.com>
 ###
 ### Permission is hereby granted, free of charge, to any person obtaining a
 ### copy of this software and associated documentation files (the "Software"),
@@ -29,7 +29,7 @@ define([AC_INIT_NOTICE],
 ])
 
 AC_REVISION($Revision: 1.3 $)dnl
-AC_INIT(audit,2.8.1)
+AC_INIT(audit,2.8.4)
 AC_PREREQ(2.12)dnl
 AM_CONFIG_HEADER(config.h)
 
@@ -249,6 +249,10 @@ AC_ARG_ENABLE(systemd,
 	[want_systemd="no"]
 )
 AM_CONDITIONAL(ENABLE_SYSTEMD, test x$want_systemd = xyes)
+
+# linux/fanotify.h
+AC_CHECK_HEADER(linux/fanotify.h, [ AC_DEFINE(USE_FANOTIFY, [],
+	[Defined when fanotify headers are found]) ])
 
 withval=""
 ALLDEBUG="-g"

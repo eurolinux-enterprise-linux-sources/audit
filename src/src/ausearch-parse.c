@@ -16,7 +16,8 @@
 *
 * You should have received a copy of the GNU General Public License
 * along with this program; see the file COPYING. If not, write to the
-* Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+* Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor 
+* Boston, MA 02110-1335, USA.
 *
 * Authors:
 *   Steve Grubb <sgrubb@redhat.com>
@@ -275,9 +276,15 @@ static int parse_task_info(lnode *n, search_items *s)
 	}
 	// optionally get uid
 	if (event_uid != -1 || event_tuid) {
+try_again:
 		str = strstr(term, "uid=");
 		if (str == NULL)
 			return 22;
+		// This sometimes hits auid instead of uid. If so, retry.
+		if (*(str-1) == 'a') {
+			term = str +1;
+			goto try_again;
+		}
 		ptr = str + 4;
 		term = strchr(ptr, ' ');
 		if (term == NULL)
@@ -435,6 +442,24 @@ static int parse_task_info(lnode *n, search_items *s)
 				*term = ' ';
 			} else
 				return 42;
+		}
+	}
+	// success
+	if (event_success != S_UNSET) {
+		if (term == NULL)
+			term = n->message;
+		str = strstr(term, "res=");
+		if (str != NULL) {
+			ptr = str + 4;
+			term = strchr(ptr, ' ');
+			if (term)
+				*term = 0;
+			errno = 0;
+			s->success = strtoul(ptr, NULL, 10);
+			if (errno)
+				return 43;
+			if (term)
+				*term = ' ';
 		}
 	}
 
@@ -948,51 +973,75 @@ static int parse_user(const lnode *n, search_items *s)
 			*term = saved;
 		}
 	}
-	if (event_subject) {
-		str = strstr(term, "vm-ctx=");
-		if (str != NULL) {
-			str += 7;
-			term = strchr(str, ' ');
-			if (term == NULL)
-				return 27;
-			*term = 0;
-			if (audit_avc_init(s) == 0) {
-				anode an;
-
-				anode_init(&an);
-				an.scontext = strdup(str);
-				alist_append(s->avc, &an);
-				*term = ' ';
-			} else
-				return 28;
+	if (n->type == AUDIT_VIRT_MACHINE_ID) {
+		if (event_subject) {
+			str = strstr(term, "vm-ctx=");
+			if (str != NULL) {
+				str += 7;
+				term = strchr(str, ' ');
+				if (term == NULL)
+					return 27;
+				*term = 0;
+				if (audit_avc_init(s) == 0) {
+					anode an;
+	
+					anode_init(&an);
+					an.scontext = strdup(str);
+					alist_append(s->avc, &an);
+					*term = ' ';
+				} else
+					return 28;
+			}
 		}
-	}
-	if (event_object) {
-		str = strstr(term, "img-ctx=");
-		if (str != NULL) {
-			str += 8;
-			term = strchr(str, ' ');
-			if (term == NULL)
-				return 29;
-			*term = 0;
-			if (audit_avc_init(s) == 0) {
-				anode an;
+		if (event_object) {
+			str = strstr(term, "img-ctx=");
+			if (str != NULL) {
+				str += 8;
+				term = strchr(str, ' ');
+				if (term == NULL)
+					return 29;
+				*term = 0;
+				if (audit_avc_init(s) == 0) {
+					anode an;
 
-				anode_init(&an);
-				an.tcontext = strdup(str);
-				alist_append(s->avc, &an);
-				*term = ' ';
-			} else
-				return 30;
+					anode_init(&an);
+					an.tcontext = strdup(str);
+					alist_append(s->avc, &an);
+					*term = ' ';
+				} else
+					return 30;
+			}
+		}
+	} else if (n->type == AUDIT_VIRT_RESOURCE) {
+		if (event_filename) {
+			unsigned int incr = 6;
+			str = strstr(term, " path=");
+			if (str == NULL) {
+				incr = 10;
+				str = strstr(term, " new-disk=");
+			}
+			if (str != NULL) {
+				int rc;
+				str += incr;
+				rc = common_path_parser(s, str);
+				if (rc)
+					return rc;
+				term = str;
+			}
 		}
 	}
 	// optionally get uid - some records the second uid is what we want.
 	// USER_LOGIN for example.
 	if (event_uid != -1 || event_tuid) {
+try_again:
 		str = strstr(term, "uid=");
 		if (str) {
-			if (*(str - 1) == 'a' || *(str - 1) == 's' ||
-					*(str - 1) == 'u')
+			// If we found auid, skip and try again
+			if (*(str - 1) == 'a') {
+				term = str +1;
+				goto try_again;
+			}
+			if (*(str - 1) == 's' || *(str - 1) == 'u')
 				goto skip;
 			if (!(*(str - 1) == '\'' || *(str - 1) == ' '))
 				return 25;

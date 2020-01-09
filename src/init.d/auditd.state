@@ -7,10 +7,17 @@ test $EUID = 0  ||  exit 4
 
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
 prog="auditd"
+state_file="/var/run/auditd.state"
 . /etc/init.d/functions
 
-printf "Rotating logs: "
-killproc $prog -USR1
+printf "Getting auditd internal state: "
+killproc $prog -CONT
 RETVAL=$?
+echo -e "\n"
+if [ $? -eq 0 ] ; then
+	if [ -e $state_file ] ; then
+		cat $state_file
+	fi
+fi
 echo
 exit $RETVAL

@@ -50,7 +50,12 @@
 #include <sys/personality.h>
 #include <sys/prctl.h>
 #include <sched.h>
+#ifdef USE_FANOTIFY
 #include <linux/fanotify.h>
+#else
+#define FAN_ALLOW 1
+#define FAN_DENY 2
+#endif
 #include "auparse-defs.h"
 #include "gen_tables.h"
 
@@ -834,8 +839,11 @@ static const char *print_escaped_ext(const idata *id)
 		}
 		errno = 0;
 		out = realpath(str3, NULL);
-		if (errno) // If there's an error, just return the original
+		if (errno) { // If there's an error, just return the original
+			free(str1);
+			free(str2);
 			return str3;
+		}
 err_out:
 		free(str1);
 		free(str2);
@@ -1346,7 +1354,7 @@ static const char *print_open_flags(const char *val)
 	size_t i;
 	unsigned int flags;
 	int cnt = 0;
-	char *out, buf[178];
+	char *out, buf[sizeof(open_flag_strings)+8];
 
 	errno = 0;
 	flags = strtoul(val, NULL, 16);
@@ -1384,7 +1392,7 @@ static const char *print_clone_flags(const char *val)
 {
 	unsigned int flags, i, clone_sig;
 	int cnt = 0;
-	char *out, buf[362]; // added 10 for signal name
+	char *out, buf[sizeof(clone_flag_strings)+16];// + 10 for signal name
 
 	errno = 0;
 	flags = strtoul(val, NULL, 16);
@@ -1535,7 +1543,7 @@ static const char *print_mmap(const char *val)
 {
 	unsigned int maps, i;
 	int cnt = 0;
-	char buf[176];
+	char buf[sizeof(mmap_strings)+8];
 	char *out;
 
 	errno = 0;
@@ -1701,7 +1709,7 @@ static const char *print_recv(const char *val)
 {
 	unsigned int rec, i;
 	int cnt = 0;
-	char buf[234];
+	char buf[sizeof(recv_strings)+8];
 	char *out;
 
 	errno = 0;
@@ -1980,7 +1988,7 @@ static const char *print_shmflags(const char *val)
 {
 	unsigned int flags, partial, i;
 	int cnt = 0;
-	char *out, buf[32];
+	char *out, buf[sizeof(shm_mode_strings)+sizeof(ipccmd_strings)+8];
 
 	errno = 0;
 	flags = strtoul(val, NULL, 16);
@@ -2061,7 +2069,7 @@ static const char *print_umount(const char *val)
 {
 	unsigned int flags, i;
 	int cnt = 0;
-	char buf[64];
+	char buf[sizeof(umount_strings)+8];
 	char *out;
 
 	errno = 0;
@@ -2107,7 +2115,7 @@ static const char *print_ioctl_req(const char *val)
 	r = ioctlreq_i2s(req);
 	if (r != NULL)
 		return strdup(r);
-	if (asprintf(&out, "0x%s", val) < 0)
+	if (asprintf(&out, "0x%x", req) < 0)
 		out = NULL;
 	return out;
 }

@@ -2,7 +2,7 @@
 
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
-Version: 2.8.2
+Version: 2.8.4
 Release: 1
 License: GPLv2+
 Group: System Environment/Daemons
@@ -229,11 +229,14 @@ fi
 %attr(755,root,root) %{_bindir}/auvirt
 %attr(644,root,root) %{_unitdir}/auditd.service
 %attr(750,root,root) %dir %{_libexecdir}/initscripts/legacy-actions/auditd
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/condrestart
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/reload
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/restart
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/resume
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/rotate
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/state
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/stop
-%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/restart
-%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/condrestart
+%ghost %{_localstatedir}/run/auditd.state
 %attr(-,root,-) %dir %{_var}/log/audit
 %attr(750,root,root) %dir /etc/audit
 %attr(750,root,root) %dir /etc/audit/rules.d
@@ -263,6 +266,6 @@ fi
 
 
 %changelog
-* Thu Oct 12 2017 Steve Grubb <sgrubb@redhat.com> 2.8.1-1
+* Tue Jun 19 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-1
 - New upstream release
 

@@ -1,3 +1,38 @@
+2.8.4
+- Generate checkpoint file even when not results are returned (Burn Alting)
+- Fix log file creation when file logging is disabled entirely (Vlad Glagolev)
+- Use SIGCONT to dump auditd internal state (#1504251)
+- Fix parsing of virtual timestamp fields in ausearch_expression (#1515903)
+- Fix parsing of uid & success for ausearch
+- Hide lru symbols in auparse
+- Fix aureport summary time range reporting
+- Allow unlimited retries on startup for remote logging
+- Add queue_depth to remote logging stats and increase default queue_depth size
+
+2.8.3
+- Correct msg function name in lru debug code
+- Fix a segfault in auditd when dns resolution isn't available
+- Make a reload legacy service for auditd
+- In auparse python bindings, expose some new types that were missing
+- In normalizer, pickup subject kind for user_login events
+- Fix interpretation of unknown ioctcmds (#1540507)
+- Add ANOM_LOGIN_SERVICE, RESP_ORIGIN_BLOCK, & RESP_ORIGIN_BLOCK_TIMED events
+- In auparse_normalize for USER_LOGIN events, map acct for subj_kind
+- Fix logging of IPv6 addresses in DAEMON_ACCEPT events (#1534748)
+- Do not rotate auditd logs when num_logs < 2 (brozs)
+
+2.8.2
+- Update tables for 4.14 kernel
+- Fixup ipv6 server side binding
+- AVC report from aureport was missing result column header (#1511606)
+- Add SOFTWARE_UPDATE event
+- In ausearch/report pickup any path and new-disk fields as a file
+- Fix value returned by auditctl --reset-lost (Richard Guy Briggs)
+- In auparse, fix expr_create_timestamp_comparison_ex to be numeric field
+- Fix building on old systems without linux/fanotify.h
+- Fix shell portability issues reported by shellcheck
+- Auditd validate_email should not use gethostbyname
+
 2.8.1
 - Fix NULL ptr dereference in audispd plugin_dir parser
 - Signed/unsigned cleanup

@@ -1,5 +1,5 @@
 /* libaudit.h -- 
- * Copyright 2004-2017 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-2018 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -97,6 +97,7 @@ extern "C" {
 #define AUDIT_ACCT_LOCK		1135    /* User's account locked by admin */
 #define AUDIT_ACCT_UNLOCK	1136    /* User's account unlocked by admin */
 #define AUDIT_USER_DEVICE	1137	/* User space hotplug device changes */
+#define AUDIT_SOFTWARE_UPDATE	1138	/* Software update event */
 
 #define AUDIT_FIRST_DAEMON	1200
 #define AUDIT_LAST_DAEMON	1299
@@ -162,6 +163,7 @@ extern "C" {
 #define AUDIT_ANOM_DEL_ACCT		2115 // Deleting an acct
 #define AUDIT_ANOM_MOD_ACCT		2116 // Changing an acct
 #define AUDIT_ANOM_ROOT_TRANS		2117 // User became root
+#define AUDIT_ANOM_LOGIN_SERVICE	2118 // Service acct attempted login
 
 #define AUDIT_FIRST_ANOM_RESP		2200
 #define AUDIT_LAST_ANOM_RESP		2299
@@ -178,6 +180,8 @@ extern "C" {
 #define AUDIT_RESP_EXEC			2210 /* Execute a script */
 #define AUDIT_RESP_SINGLE		2211 /* Go to single user mode */
 #define AUDIT_RESP_HALT			2212 /* take the system down */
+#define AUDIT_RESP_ORIGIN_BLOCK		2213 /* Address blocked by iptables */
+#define AUDIT_RESP_ORIGIN_BLOCK_TIMED	2214 /* Address blocked for time */
 
 #define AUDIT_FIRST_USER_LSPP_MSG	2300
 #define AUDIT_LAST_USER_LSPP_MSG	2399
@@ -285,7 +289,9 @@ extern "C" {
 #ifndef AUDIT_FILTER_FS
 #define AUDIT_FILTER_FS		0x06 /* FS record filter in __audit_inode_child */
 #endif
+#ifndef AUDIT_FILTER_EXCLUDE
 #define AUDIT_FILTER_EXCLUDE	AUDIT_FILTER_TYPE
+#endif
 #define AUDIT_FILTER_MASK	0x07	/* Mask to get actual filter */
 #define AUDIT_FILTER_UNSET	0x80	/* This value means filter is unset */
 

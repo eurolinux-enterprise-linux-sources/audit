@@ -15,7 +15,8 @@
 *
 * You should have received a copy of the GNU General Public License
 * along with this program; see the file COPYING. If not, write to the
-* Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+* Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor 
+* Boston, MA 02110-1335, USA.
 *
 * Authors:
 *   Steve Grubb <sgrubb@redhat.com>
@@ -216,11 +217,11 @@ static void print_title_detailed(void)
 		case RPT_AVC:
 			printf("AVC Report\n");
 			printf(
-		  "========================================================\n");
+		  "===============================================================\n");
 			printf(
-		  "# date time comm subj syscall class permission obj event\n");
+		  "# date time comm subj syscall class permission obj result event\n");
 			printf(
-		  "========================================================\n");
+		  "===============================================================\n");
 			break;
 		case RPT_CONFIG:
 			printf("Config Change Report\n");
@@ -540,9 +541,9 @@ void print_per_event_item(llist *l)
 			break;
 		case RPT_LOGIN:
 			// who, addr, terminal, exe, success, event
-			// Special note...uid is used here because that is
-			// the way that the message works. This is because
-			// on failed logins, loginuid is not set.
+			// Special note...loginuid can be used here for
+			// successful logins. loginuid is not set on failed
+			// logins so acct is used in that situation.
 			safe_print_string(((l->s.success == S_FAILED) &&
 				l->s.acct) ? l->s.acct :
 				aulookup_uid(l->s.loginuid,

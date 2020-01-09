@@ -15,7 +15,8 @@
 *
 * You should have received a copy of the GNU General Public License
 * along with this program; see the file COPYING. If not, write to the
-* Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+* Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor 
+* Boston, MA 02110-1335, USA.
 *
 * Authors:
 *   Steve Grubb <sgrubb@redhat.com>
@@ -32,6 +33,7 @@
 
 #define ARRAY_LIMIT 80
 static int ready = 0;
+event very_first_event;
 
 void lol_create(lol *lo)
 {
@@ -173,9 +175,13 @@ static int extract_timestamp(const char *b, event *e)
 						ptr);
 					return 0;
 				} else if ((start_time && e->sec < start_time)
-					|| (end_time && e->sec > end_time))
+					|| (end_time && e->sec > end_time)) {
+					if (very_first_event.sec == 0) {
+						very_first_event.sec = e->sec;
+						very_first_event.milli = e->milli;
+					}
 					return 0;
-				else {
+				} else {
 					if (tnode)
 						e->node = strdup(tnode);
 					e->type = audit_name_to_msg_type(ttype);
@@ -229,6 +235,8 @@ int lol_add_record(lol *lo, char *buff)
 	if (extract_timestamp(buff, &e) == 0)
 		return 0;
 
+	n.a0 = 0L;
+	n.a1 = 0L;
 	n.type = e.type;
 	n.message = strdup(buff);
 	ptr = strchr(n.message, AUDIT_INTERP_SEPARATOR);

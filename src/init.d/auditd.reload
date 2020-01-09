@@ -9,8 +9,8 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin
 prog="auditd"
 . /etc/init.d/functions
 
-printf "Rotating logs: "
-killproc $prog -USR1
+printf "Reconfiguring: "
+killproc $prog -HUP
 RETVAL=$?
 echo
 exit $RETVAL

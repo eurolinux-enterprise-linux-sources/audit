@@ -157,6 +157,9 @@
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
 
+/* Defined when fanotify headers are found */
+#undef USE_FANOTIFY
+
 /* Define if you want to use GSSAPI */
 #undef USE_GSSAPI
 

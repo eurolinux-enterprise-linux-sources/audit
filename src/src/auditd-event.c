@@ -1,5 +1,5 @@
 /* auditd-event.c -- 
- * Copyright 2004-08,2011,2013,2015-16 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2004-08,2011,2013,2015-16,2018 Red Hat Inc.,Durham, North Carolina.
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,6 @@
  */
 
 #include "config.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -93,6 +92,21 @@ static volatile int flush;
 int dispatch_network_events(void)
 {
 	return config->distribute_network_events;
+}
+
+void write_logging_state(FILE *f)
+{
+	fprintf(f, "current log size = %lu\n", log_size);
+	fprintf(f, "space left on partition = %s\n",
+					fs_space_left ? "yes" : "no");
+	fprintf(f, "logging suspended = %s\n",
+					logging_suspended ? "yes" : "no");
+	fprintf(f, "file system space warning sent = %s\n",
+					fs_space_warning ? "yes" : "no");
+	fprintf(f, "admin space warning sent = %s\n",
+					fs_admin_space_warning ? "yes" : "no");
+	fprintf(f, "disk error detected = %s\n",
+					disk_err_warning ? "yes" : "no");
 }
 
 void shutdown_events(void)
@@ -968,9 +982,14 @@ static void rotate_logs(unsigned int num_logs)
 	unsigned int len, i;
 	char *oldname, *newname;
 
-	if (config->max_log_size_action == SZ_ROTATE &&
-				config->num_logs < 2)
+	/* Check that log rotation is enabled in the configuration file. There is
+	 * no need to check for max_log_size_action == SZ_ROTATE because this could be
+	 * invoked externally by receiving a USR1 signal, independently on
+	 *  the action parameter. */
+	if (config->num_logs < 2){
+		audit_msg(LOG_NOTICE, "Log rotation disabled (num_logs < 2), skipping");
 		return;
+	}
 
 	/* Close audit file. fchmod and fchown errors are not fatal because we
 	 * already adjusted log file permissions and ownership when opening the
@@ -1062,7 +1081,7 @@ static void rotate_logs(unsigned int num_logs)
 	}
 }
 
-static int last_log = 1;
+static unsigned int last_log = 1;
 static void shift_logs(void)
 {
 	// The way this has to work is to start scanning from .1 up until
@@ -1114,6 +1133,9 @@ static void shift_logs(void)
 static int open_audit_log(void)
 {
 	int flags, lfd;
+
+	if (config->write_logs == 0)
+		return 0;
 
 	flags = O_WRONLY|O_APPEND|O_NOFOLLOW;
 	if (config->flush == FT_DATA)

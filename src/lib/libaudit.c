@@ -519,6 +519,7 @@ int audit_set_backlog_wait_time(int fd, uint32_t bwt)
 int audit_reset_lost(int fd)
 {
 	int rc;
+	int seq;
 	struct audit_status s;
 
 	if ((audit_get_features() & AUDIT_FEATURE_BITMAP_LOST_RESET) == 0)
@@ -527,7 +528,7 @@ int audit_reset_lost(int fd)
 	memset(&s, 0, sizeof(s));
 	s.mask = AUDIT_STATUS_LOST;
 	s.lost = 0;
-	rc = audit_send(fd, AUDIT_SET, &s, sizeof(s));
+	rc = __audit_send(fd, AUDIT_SET, &s, sizeof(s), &seq);
 	if (rc < 0)
 		audit_msg(audit_priority(errno),
 			"Error sending lost reset request (%s)", 
@@ -837,7 +838,7 @@ int audit_make_equivalent(int fd, const char *mount_point,
 }
 
 /*
- * This function will retreive the loginuid or -1 if there
+ * This function will retrieve the loginuid or -1 if there
  * is an error.
  */
 uid_t audit_getloginuid(void)
@@ -901,7 +902,7 @@ int audit_setloginuid(uid_t uid)
 }
 
 /*
- * This function will retreive the login session or -2 if there
+ * This function will retrieve the login session or -2 if there
  * is an error.
  */
 uint32_t audit_get_session(void)

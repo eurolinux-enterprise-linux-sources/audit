@@ -1,5 +1,5 @@
 /* msg_typetab.h --
- * Copyright 2005-07,2009-17 Red Hat Inc., Durham, North Carolina.
+ * Copyright 2005-07,2009-18 Red Hat Inc., Durham, North Carolina.
  * All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -75,6 +75,7 @@ _S(AUDIT_MAC_CHECK,                  "MAC_CHECK"                     )
 _S(AUDIT_ACCT_LOCK,                  "ACCT_LOCK"                     )
 _S(AUDIT_ACCT_UNLOCK,                "ACCT_UNLOCK"                   )
 _S(AUDIT_USER_DEVICE,                "USER_DEVICE"                   )
+_S(AUDIT_SOFTWARE_UPDATE,            "SOFTWARE_UPDATE"               )
 _S(AUDIT_SYSTEM_BOOT,                "SYSTEM_BOOT"                   )
 _S(AUDIT_SYSTEM_SHUTDOWN,            "SYSTEM_SHUTDOWN"               )
 _S(AUDIT_SYSTEM_RUNLEVEL,            "SYSTEM_RUNLEVEL"               )
@@ -178,6 +179,7 @@ _S(AUDIT_ANOM_ADD_ACCT,              "ANOM_ADD_ACCT"                 )
 _S(AUDIT_ANOM_DEL_ACCT,              "ANOM_DEL_ACCT"                 )
 _S(AUDIT_ANOM_MOD_ACCT,              "ANOM_MOD_ACCT"                 )
 _S(AUDIT_ANOM_ROOT_TRANS,            "ANOM_ROOT_TRANS"               )
+_S(AUDIT_ANOM_LOGIN_SERVICE,         "ANOM_LOGIN_SERVICE"            )
 _S(AUDIT_RESP_ANOMALY,               "RESP_ANOMALY"                  )
 _S(AUDIT_RESP_ALERT,                 "RESP_ALERT"                    )
 _S(AUDIT_RESP_KILL_PROC,             "RESP_KILL_PROC"                )
@@ -191,6 +193,8 @@ _S(AUDIT_RESP_SEBOOL,                "RESP_SEBOOL"                   )
 _S(AUDIT_RESP_EXEC,                  "RESP_EXEC"                     )
 _S(AUDIT_RESP_SINGLE,                "RESP_SINGLE"                   )
 _S(AUDIT_RESP_HALT,                  "RESP_HALT"                     )
+_S(AUDIT_RESP_ORIGIN_BLOCK,          "RESP_ORIGIN_BLOCK"             )
+_S(AUDIT_RESP_ORIGIN_BLOCK_TIMED,    "RESP_ORIGIN_BLOCK_TIMED"       )
 _S(AUDIT_USER_ROLE_CHANGE,           "USER_ROLE_CHANGE"              )
 _S(AUDIT_ROLE_ASSIGN,                "ROLE_ASSIGN"                   )
 _S(AUDIT_ROLE_REMOVE,                "ROLE_REMOVE"                   )

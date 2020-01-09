@@ -2,8 +2,8 @@
 
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
-Version: 2.8.1
-Release: 3%{?dist}.1
+Version: 2.8.4
+Release: 4%{?dist}
 License: GPLv2+
 Group: System Environment/Daemons
 URL: http://people.redhat.com/sgrubb/audit/
@@ -12,16 +12,14 @@ Source0: http://people.redhat.com/sgrubb/audit/%{name}-%{version}.tar.gz
 Patch1: audit-2.7.1-rhel7-fixup.patch
 # DO NOT REMOVE - backlog_wait_time is not in RHEL 7 kernel
 Patch2: audit-2.7.5-no-backlog-wait-time.patch
-# This patch is purely fomatting. Needed for Patch4 to apply
-Patch3: audit-2.8.2-style-fix.patch
-# This patch fixes issue reported in bz 1101605#c15
-Patch4: audit-2.8.2-ipv6-bind.patch
-# This patch corrects the return value for auditctl --reset-lost
-Patch5: audit-2.8.2-fix-reset-lost-return.patch
-# This patch makes date a numeric field so auparse_search works
-Patch6: audit-2.8.2-auparse-numeric_field.patch
-# This patch fixes a hang during daemon start up (#1607298)
-Patch7: audit-2.8.4-fix-hang.patch
+# Fix a segfault on shutdown
+Patch3: audit-2.8.4-close.patch
+# Fix a hang on boot (#1587995)
+Patch4: audit-2.8.4-fix-hang.patch
+# Add a sleep so that the report can run before displying it
+Patch5: audit-3.0-state-sleep.patch
+# Add support for ausearch --format text for SOFTWARE_UPDATE events
+Patch6: audit-3.0-sw-update.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: openldap-devel
 BuildRequires: swig
@@ -101,7 +99,6 @@ like relay events to remote machines.
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
-%patch7 -p1
 
 %build
 %configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes \
@@ -244,18 +241,21 @@ fi
 %attr(755,root,root) %{_bindir}/auvirt
 %attr(644,root,root) %{_unitdir}/auditd.service
 %attr(750,root,root) %dir %{_libexecdir}/initscripts/legacy-actions/auditd
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/condrestart
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/reload
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/restart
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/resume
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/rotate
+%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/state
 %attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/stop
-%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/restart
-%attr(750,root,root) %{_libexecdir}/initscripts/legacy-actions/auditd/condrestart
+%ghost %{_localstatedir}/run/auditd.state
 %attr(-,root,-) %dir %{_var}/log/audit
 %attr(750,root,root) %dir /etc/audit
 %attr(750,root,root) %dir /etc/audit/rules.d
 %attr(750,root,root) %dir /etc/audisp
 %attr(750,root,root) %dir /etc/audisp/plugins.d
 %config(noreplace) %attr(640,root,root) /etc/audit/auditd.conf
-%ghost %config(noreplace) %attr(640,root,root) /etc/audit/rules.d/audit.rules
+%ghost %config(noreplace) %attr(600,root,root) /etc/audit/rules.d/audit.rules
 %ghost %config(noreplace) %attr(640,root,root) /etc/audit/audit.rules
 %config(noreplace) %attr(640,root,root) /etc/audit/audit-stop.rules
 %config(noreplace) %attr(640,root,root) /etc/audisp/audispd.conf
@@ -277,8 +277,22 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
-* Mon Jul 23 2018 Steve Grubb <sgrubb@redhat.com> 2.8.1-3.el7_5.1
-resolves: #1607298 - auditd sometimes in failed state after boot
+* Tue Jul 17 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-4
+resolves: #1559032 - Rebase audit package to 2.8.4 to pick up bug fixes
+
+* Wed Jun 27 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-3
+resolves: #1587995 - auditd sometimes in failed state after boot
+
+* Tue Jun 26 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-2
+resolves: #1559032 - Fix a segfault on shutdown
+
+* Wed Jun 20 2018 Steve Grubb <sgrubb@redhat.com> 2.8.4-1
+resolves: #1559032 - Rebase audit package to 2.8.4 to pick up bug fixes
+resolves: #1573889 - auditd busy loop in rotate_logs() with num_logs < 2
+resolves: #1534748 - incorrect addr field when using IPv6 for remote logging
+resolves: #1515903 - ausearch-expression man page missing \timestamp_ex
+resolves: #1511606 - aureport AVC report header is incomplete
+resolves: #1504251 - make auditd dump internal state for log writing status
 
 * Tue Dec 12 2017 Steve Grubb <sgrubb@redhat.com> 2.8.1-3
 resolves: #1399314 - Allow non-equality comparisons for uid and gid fields
