@@ -3,7 +3,7 @@
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
 Version: 2.8.1
-Release: 3%{?dist}
+Release: 3%{?dist}.1
 License: GPLv2+
 Group: System Environment/Daemons
 URL: http://people.redhat.com/sgrubb/audit/
@@ -20,6 +20,8 @@ Patch4: audit-2.8.2-ipv6-bind.patch
 Patch5: audit-2.8.2-fix-reset-lost-return.patch
 # This patch makes date a numeric field so auparse_search works
 Patch6: audit-2.8.2-auparse-numeric_field.patch
+# This patch fixes a hang during daemon start up (#1607298)
+Patch7: audit-2.8.4-fix-hang.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: openldap-devel
 BuildRequires: swig
@@ -99,6 +101,7 @@ like relay events to remote machines.
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
+%patch7 -p1
 
 %build
 %configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes \
@@ -274,6 +277,9 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
+* Mon Jul 23 2018 Steve Grubb <sgrubb@redhat.com> 2.8.1-3.el7_5.1
+resolves: #1607298 - auditd sometimes in failed state after boot
+
 * Tue Dec 12 2017 Steve Grubb <sgrubb@redhat.com> 2.8.1-3
 resolves: #1399314 - Allow non-equality comparisons for uid and gid fields
 
