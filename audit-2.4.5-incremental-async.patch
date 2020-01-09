@@ -1,0 +1,891 @@
+diff -urp audit-2.4.5.orig/audisp/Makefile.am audit-2.4.5/audisp/Makefile.am
+--- audit-2.4.5.orig/audisp/Makefile.am	2015-12-18 14:20:57.000000000 -0500
++++ audit-2.4.5/audisp/Makefile.am	2016-09-07 16:29:35.696355039 -0400
+@@ -1,5 +1,5 @@
+ # Makefile.am-- 
+-# Copyright 2007,2011,2015 Red Hat Inc., Durham, North Carolina.
++# Copyright 2007,2011,2015-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -27,7 +27,7 @@ AM_CPPFLAGS = -I${top_srcdir} -I${top_sr
+ sbin_PROGRAMS = audispd
+ noinst_HEADERS = audispd-config.h audispd-pconfig.h audispd-llist.h \
+ 	queue.h audispd-builtins.h
+-LIBS = -L${top_builddir}/src/mt -lauditmt 
++LIBS = -L${top_builddir}/lib -laudit 
+ LDADD = -lpthread
+ AM_CFLAGS = -D_REENTRANT 
+ 
+diff -urp audit-2.4.5.orig/audisp/Makefile.in audit-2.4.5/audisp/Makefile.in
+--- audit-2.4.5.orig/audisp/Makefile.in	2015-12-18 14:21:09.000000000 -0500
++++ audit-2.4.5/audisp/Makefile.in	2016-09-07 16:29:54.854354195 -0400
+@@ -15,7 +15,7 @@
+ @SET_MAKE@
+ 
+ # Makefile.am-- 
+-# Copyright 2007,2011,2015 Red Hat Inc., Durham, North Carolina.
++# Copyright 2007,2011,2015-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -295,7 +295,7 @@ LDFLAGS_FOR_BUILD = @LDFLAGS_FOR_BUILD@
+ LIBOBJS = @LIBOBJS@
+ LIBPRELUDE_CFLAGS = @LIBPRELUDE_CFLAGS@
+ LIBPRELUDE_LDFLAGS = @LIBPRELUDE_LDFLAGS@
+-LIBS = -L${top_builddir}/src/mt -lauditmt 
++LIBS = -L${top_builddir}/lib -laudit 
+ LIBTOOL = @LIBTOOL@
+ LIBTOOL_DEPS = @LIBTOOL_DEPS@
+ LIBWRAP_LIBS = @LIBWRAP_LIBS@
+diff -urp audit-2.4.5.orig/configure audit-2.4.5/configure
+--- audit-2.4.5.orig/configure	2015-12-18 14:21:08.000000000 -0500
++++ audit-2.4.5/configure	2016-09-07 16:29:54.018354232 -0400
+@@ -15831,7 +15831,7 @@ $as_echo "no" >&6; }
+ 
+ 
+ 
+-ac_config_files="$ac_config_files Makefile lib/Makefile lib/audit.pc lib/test/Makefile auparse/Makefile auparse/test/Makefile auparse/auparse.pc src/Makefile src/mt/Makefile src/libev/Makefile src/test/Makefile docs/Makefile init.d/Makefile audisp/Makefile audisp/plugins/Makefile audisp/plugins/builtins/Makefile audisp/plugins/prelude/Makefile audisp/plugins/remote/Makefile audisp/plugins/zos-remote/Makefile bindings/Makefile bindings/python/Makefile bindings/python/python2/Makefile bindings/python/python3/Makefile bindings/golang/Makefile bindings/swig/Makefile bindings/swig/src/Makefile bindings/swig/python/Makefile bindings/swig/python3/Makefile tools/Makefile tools/aulast/Makefile tools/aulastlog/Makefile tools/ausyscall/Makefile tools/auvirt/Makefile m4/Makefile"
++ac_config_files="$ac_config_files Makefile lib/Makefile lib/audit.pc lib/test/Makefile auparse/Makefile auparse/test/Makefile auparse/auparse.pc src/Makefile src/libev/Makefile src/test/Makefile docs/Makefile init.d/Makefile audisp/Makefile audisp/plugins/Makefile audisp/plugins/builtins/Makefile audisp/plugins/prelude/Makefile audisp/plugins/remote/Makefile audisp/plugins/zos-remote/Makefile bindings/Makefile bindings/python/Makefile bindings/python/python2/Makefile bindings/python/python3/Makefile bindings/golang/Makefile bindings/swig/Makefile bindings/swig/src/Makefile bindings/swig/python/Makefile bindings/swig/python3/Makefile tools/Makefile tools/aulast/Makefile tools/aulastlog/Makefile tools/ausyscall/Makefile tools/auvirt/Makefile m4/Makefile"
+ 
+ cat >confcache <<\_ACEOF
+ # This file is a shell script that caches the results of configure
+@@ -16915,7 +16915,6 @@ do
+     "auparse/test/Makefile") CONFIG_FILES="$CONFIG_FILES auparse/test/Makefile" ;;
+     "auparse/auparse.pc") CONFIG_FILES="$CONFIG_FILES auparse/auparse.pc" ;;
+     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
+-    "src/mt/Makefile") CONFIG_FILES="$CONFIG_FILES src/mt/Makefile" ;;
+     "src/libev/Makefile") CONFIG_FILES="$CONFIG_FILES src/libev/Makefile" ;;
+     "src/test/Makefile") CONFIG_FILES="$CONFIG_FILES src/test/Makefile" ;;
+     "docs/Makefile") CONFIG_FILES="$CONFIG_FILES docs/Makefile" ;;
+diff -urp audit-2.4.5.orig/docs/auditd.conf.5 audit-2.4.5/docs/auditd.conf.5
+--- audit-2.4.5.orig/docs/auditd.conf.5	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/docs/auditd.conf.5	2016-09-07 16:29:35.708355039 -0400
+@@ -27,7 +27,7 @@ This is a non-negative number that tells
+ .TP
+ .I flush
+ Valid values are
+-.IR none ", " incremental ", " data ",  and " sync ".
++.IR none ", " incremental ", " incremental_async ", " data ",  and " sync ".
+ If set to
+ .IR none ,
+ no special effort is made to flush the audit records to disk. If set to
+@@ -36,6 +36,10 @@ Then the
+ .I freq
+ parameter is used to determine how often an explicit flush to disk is issued.
+ The
++.IR incremental_async
++parameter is very much like
++.IR incremental
++except the flushing is done asynchronously for higher performance. The
+ .I data
+ parameter tells the audit daemon to keep the data portion of the disk file
+ sync'd at all times. The
+diff -urp audit-2.4.5.orig/init.d/auditd.conf audit-2.4.5/init.d/auditd.conf
+--- audit-2.4.5.orig/init.d/auditd.conf	2015-12-18 14:20:57.000000000 -0500
++++ audit-2.4.5/init.d/auditd.conf	2016-09-07 16:29:35.708355039 -0400
+@@ -6,8 +6,8 @@ log_file = /var/log/audit/audit.log
+ log_format = RAW
+ log_group = root
+ priority_boost = 4
+-flush = INCREMENTAL
+-freq = 20
++flush = INCREMENTAL_ASYNC
++freq = 50
+ num_logs = 5
+ disp_qos = lossy
+ dispatcher = /sbin/audispd
+@@ -22,6 +22,7 @@ admin_space_left = 50
+ admin_space_left_action = SUSPEND
+ disk_full_action = SUSPEND
+ disk_error_action = SUSPEND
++use_libwrap = yes
+ ##tcp_listen_port = 
+ tcp_listen_queue = 5
+ tcp_max_per_addr = 1
+diff -urp audit-2.4.5.orig/Makefile.am audit-2.4.5/Makefile.am
+--- audit-2.4.5.orig/Makefile.am	2015-12-18 14:21:00.000000000 -0500
++++ audit-2.4.5/Makefile.am	2016-09-07 16:29:35.708355039 -0400
+@@ -1,5 +1,5 @@
+ # Makefile.am -- 
+-# Copyright 2004-08,2015 Red Hat Inc., Durham, North Carolina.
++# Copyright 2004-08,2015-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -21,7 +21,7 @@
+ #   Rickard E. (Rik) Faith <faith@redhat.com>
+ #
+ 
+-SUBDIRS = lib auparse src/mt src/libev src audisp tools bindings init.d \
++SUBDIRS = lib auparse src/libev src audisp tools bindings init.d \
+ 	m4 docs
+ EXTRA_DIST = ChangeLog AUTHORS NEWS README INSTALL audit.spec \
+         COPYING COPYING.LIB \
+diff -urp audit-2.4.5.orig/Makefile.in audit-2.4.5/Makefile.in
+--- audit-2.4.5.orig/Makefile.in	2015-12-18 14:21:09.000000000 -0500
++++ audit-2.4.5/Makefile.in	2016-09-07 16:29:54.824354196 -0400
+@@ -15,7 +15,7 @@
+ @SET_MAKE@
+ 
+ # Makefile.am -- 
+-# Copyright 2004-08,2015 Red Hat Inc., Durham, North Carolina.
++# Copyright 2004-08,2015-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -186,8 +186,8 @@ CSCOPE = cscope
+ DIST_SUBDIRS = $(SUBDIRS)
+ am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/config.h.in AUTHORS \
+ 	COPYING COPYING.LIB ChangeLog INSTALL NEWS README THANKS TODO \
+-	compile config.guess config.sub install-sh ltmain.sh missing \
+-	py-compile
++	compile config.guess config.sub depcomp install-sh ltmain.sh \
++	missing py-compile
+ DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ distdir = $(PACKAGE)-$(VERSION)
+ top_distdir = $(distdir)
+@@ -387,7 +387,7 @@ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+ use_python3 = @use_python3@
+-SUBDIRS = lib auparse src/mt src/libev src audisp tools bindings init.d \
++SUBDIRS = lib auparse src/libev src audisp tools bindings init.d \
+ 	m4 docs
+ 
+ EXTRA_DIST = ChangeLog AUTHORS NEWS README INSTALL audit.spec \
+diff -urp audit-2.4.5.orig/src/auditd.c audit-2.4.5/src/auditd.c
+--- audit-2.4.5.orig/src/auditd.c	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/auditd.c	2016-09-07 16:29:35.709355039 -0400
+@@ -1,5 +1,5 @@
+ /* auditd.c -- 
+- * Copyright 2004-09,2011,2013 Red Hat Inc., Durham, North Carolina.
++ * Copyright 2004-09,2011,2013,2016 Red Hat Inc., Durham, North Carolina.
+  * All Rights Reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+@@ -60,12 +60,12 @@
+ volatile int stop = 0;
+ 
+ /* Local data */
+-static int fd = -1;
++static int fd = -1, pipefds[2] = {-1, -1};
+ static struct daemon_conf config;
+ static const char *pidfile = "/var/run/auditd.pid";
+ static int init_pipe[2];
+ static int do_fork = 1;
+-static struct auditd_reply_list *rep = NULL;
++static struct auditd_reply_list *rep = NULL, *reconfig_rep = NULL;
+ static int hup_info_requested = 0;
+ static int usr1_info_requested = 0, usr2_info_requested = 0;
+ static char subj[SUBJ_LEN];
+@@ -183,23 +183,14 @@ static void distribute_event(struct audi
+ 
+ 	/* End of Event is for realtime interface - skip local logging of it */
+ 	if (rep->reply.type != AUDIT_EOE) {
+-		int yield = rep->reply.type <= AUDIT_LAST_DAEMON &&
+-				rep->reply.type >= AUDIT_FIRST_DAEMON ? 1 : 0;
+ 		/* Write to local disk */
+ 		enqueue_event(rep);
+-		if (yield) {
+-			struct timespec ts;
+-			ts.tv_sec = 0;
+-			ts.tv_nsec = 2 * 1000 * 1000; // 2 milliseconds
+-			nanosleep(&ts, NULL); // Let other thread try to log it
+-		}
+ 	} else
+ 		free(rep);	// This function takes custody of the memory
+ 
+ 	// FIXME: This is commented out since it fails to work. The
+ 	// problem is that the logger thread free's the buffer. Probably
+-	// need a way to flag in the buffer if logger thread should free or
+-	// move the free to this function.
++	// should move the free to this function.
+ 
+ 	/* Last chance to send...maybe the pipe is empty now. */
+ //	if (attempt) 
+@@ -431,6 +422,7 @@ static void netlink_handler(struct ev_lo
+ 			if (hup_info_requested) {
+ 				audit_msg(LOG_DEBUG,
+ 				    "HUP detected, starting config manager");
++				reconfig_rep = rep;
+ 				if (start_config_manager(rep)) {
+ 					send_audit_event(
+ 						AUDIT_DAEMON_CONFIG, 
+@@ -485,6 +477,29 @@ static void netlink_handler(struct ev_lo
+ 	}
+ }
+ 
++static void pipe_handler(struct ev_loop *loop, struct ev_io *io,
++                        int revents)
++{
++	char buf[16];
++
++	// Drain the pipe - won't block because libev sets non-blocking mode
++	read(pipefds[0], buf, sizeof(buf));
++	enqueue_event(reconfig_rep);
++	reconfig_rep = NULL;
++}
++
++void reconfig_ready(void)
++{
++	const char *msg = "ready\n";
++	write(pipefds[1], msg, strlen(msg));
++}
++
++static void close_pipes(void)
++{
++	close(pipefds[0]);
++	close(pipefds[1]);
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	struct sigaction sa;
+@@ -496,6 +511,7 @@ int main(int argc, char *argv[])
+ 	extern int optind;
+ 	struct ev_loop *loop;
+ 	struct ev_io netlink_watcher;
++	struct ev_io pipe_watcher;
+ 	struct ev_signal sigterm_watcher;
+ 	struct ev_signal sighup_watcher;
+ 	struct ev_signal sigusr1_watcher;
+@@ -631,6 +647,16 @@ int main(int argc, char *argv[])
+ 		return 1;
+ 	}
+ 
++	/* Setup the reconfig notification pipe */
++	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pipefds)) {
++		if (pidfile)
++			unlink(pidfile);
++		tell_parent(FAILURE);
++		return 1;
++	}
++	fcntl(pipefds[0], F_SETFD, FD_CLOEXEC);
++	fcntl(pipefds[1], F_SETFD, FD_CLOEXEC);
++
+ 	/* Write message to log that we are alive */
+ 	{
+ 		struct utsname ubuf;
+@@ -642,6 +668,7 @@ int main(int argc, char *argv[])
+ 			if (pidfile)
+ 				unlink(pidfile);
+ 			tell_parent(FAILURE);
++			close_pipes();
+ 			return 1;
+ 		}
+ 		if (getsubj(subj))
+@@ -662,6 +689,7 @@ int main(int argc, char *argv[])
+ 				unlink(pidfile);
+ 			shutdown_dispatcher();
+ 			tell_parent(FAILURE);
++			close_pipes();
+ 			return 1;
+ 		}
+ 	}
+@@ -693,6 +721,7 @@ int main(int argc, char *argv[])
+ 			unlink(pidfile);
+ 		shutdown_dispatcher();
+ 		tell_parent(FAILURE);
++		close_pipes();
+ 		return 1;
+ 	}
+ 
+@@ -715,6 +744,7 @@ int main(int argc, char *argv[])
+ 			unlink(pidfile);
+ 		shutdown_dispatcher();
+ 		tell_parent(FAILURE);
++		close_pipes();
+ 		return 1;
+ 	}
+ 
+@@ -739,7 +769,10 @@ int main(int argc, char *argv[])
+ 	ev_signal_init (&sigchld_watcher, child_handler, SIGCHLD);
+ 	ev_signal_start (loop, &sigchld_watcher);
+ 
+-	if (auditd_tcp_listen_init (loop, &config)) {
++	ev_io_init (&pipe_watcher, pipe_handler, pipefds[0], EV_READ);
++	ev_io_start (loop, &pipe_watcher);
++
++	if (auditd_tcp_listen_init(loop, &config)) {
+ 		char emsg[DEFAULT_BUF_SZ];
+ 		if (*subj)
+ 			snprintf(emsg, sizeof(emsg),
+@@ -769,6 +802,7 @@ int main(int argc, char *argv[])
+ 	if (!stop)
+ 		ev_loop (loop, 0);
+ 
++	// Event loop finished, clean up everything
+ 	auditd_tcp_listen_uninit (loop, &config);
+ 
+ 	// Tear down IO watchers Part 1
+@@ -802,6 +836,8 @@ int main(int argc, char *argv[])
+ 
+ 	// Tear down IO watchers Part 2
+ 	ev_io_stop (loop, &netlink_watcher);
++	ev_io_stop (loop, &pipe_watcher);
++	close_pipes();
+ 
+ 	// Give DAEMON_END event a little time to be sent in case
+ 	// of remote logging
+@@ -809,7 +845,7 @@ int main(int argc, char *argv[])
+ 	shutdown_dispatcher();
+ 
+ 	// Tear down IO watchers Part 3
+-	ev_signal_stop (loop, &sigchld_watcher);
++	ev_signal_stop(loop, &sigchld_watcher);
+ 
+ 	close_down();
+ 	free_config(&config);
+diff -urp audit-2.4.5.orig/src/auditd-config.c audit-2.4.5/src/auditd-config.c
+--- audit-2.4.5.orig/src/auditd-config.c	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/auditd-config.c	2016-09-07 16:29:35.709355039 -0400
+@@ -1,5 +1,5 @@
+ /* auditd-config.c -- 
+- * Copyright 2004-2011,2013-14 Red Hat Inc., Durham, North Carolina.
++ * Copyright 2004-2011,2013-14,2016 Red Hat Inc., Durham, North Carolina.
+  * All Rights Reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+@@ -157,7 +157,7 @@ static const struct kw_pair keywords[] =
+   {"enable_krb5",              enable_krb5_parser,              0 },
+   {"krb5_principal",           krb5_principal_parser,           0 },
+   {"krb5_key_file",            krb5_key_file_parser,            0 },
+-  { NULL,                      NULL }
++  { NULL,                      NULL,                            0 }
+ };
+ 
+ static const struct nv_list log_formats[] =
+@@ -171,6 +171,7 @@ static const struct nv_list flush_techni
+ {
+   {"none",        FT_NONE },
+   {"incremental", FT_INCREMENTAL },
++  {"incremental_async", FT_INCREMENTAL_ASYNC },
+   {"data",        FT_DATA },
+   {"sync",        FT_SYNC },
+   { NULL,         0 }
+@@ -1600,13 +1601,14 @@ static int sanity_check(struct daemon_co
+ 		    config->space_left, config->admin_space_left);
+ 		return 1;
+ 	}
+-	if (config->flush == FT_INCREMENTAL && config->freq == 0) {
++	if ((config->flush == FT_INCREMENTAL || config->flush == FT_INCREMENTAL_ASYNC) &&
++			config->freq == 0) {
+ 		audit_msg(LOG_ERR, 
+ 		"Error - incremental flushing chosen, but 0 selected for freq");
+ 		return 1;
+ 	}
+ 	/* Warnings */
+-	if (config->flush > FT_INCREMENTAL && config->freq != 0) {
++	if (config->flush > FT_INCREMENTAL_ASYNC && config->freq != 0) {
+ 		audit_msg(LOG_WARNING, 
+            "Warning - freq is non-zero and incremental flushing not selected.");
+ 	}
+diff -urp audit-2.4.5.orig/src/auditd-config.h audit-2.4.5/src/auditd-config.h
+--- audit-2.4.5.orig/src/auditd-config.h	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/auditd-config.h	2016-09-07 16:29:35.709355039 -0400
+@@ -1,5 +1,5 @@
+ /* auditd-config.h -- 
+- * Copyright 2004-2009,2014 Red Hat Inc., Durham, North Carolina.
++ * Copyright 2004-2009,2014,2016 Red Hat Inc., Durham, North Carolina.
+  * All Rights Reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+@@ -31,7 +31,7 @@
+ 
+ typedef enum { D_FOREGROUND, D_BACKGROUND } daemon_t;
+ typedef enum { LF_RAW, LF_NOLOG } logging_formats;
+-typedef enum { FT_NONE, FT_INCREMENTAL, FT_DATA, FT_SYNC } flush_technique;
++typedef enum { FT_NONE, FT_INCREMENTAL, FT_INCREMENTAL_ASYNC, FT_DATA, FT_SYNC } flush_technique;
+ typedef enum { FA_IGNORE, FA_SYSLOG, FA_ROTATE, FA_EMAIL, FA_EXEC, FA_SUSPEND,
+ 		FA_SINGLE, FA_HALT } failure_action_t;
+ typedef enum { SZ_IGNORE, SZ_SYSLOG, SZ_SUSPEND, SZ_ROTATE, 
+diff -urp audit-2.4.5.orig/src/auditd-event.c audit-2.4.5/src/auditd-event.c
+--- audit-2.4.5.orig/src/auditd-event.c	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/auditd-event.c	2016-09-07 16:29:35.709355039 -0400
+@@ -1,5 +1,5 @@
+ /* auditd-event.c -- 
+- * Copyright 2004-08,2011,2013,2015 Red Hat Inc., Durham, North Carolina.
++ * Copyright 2004-08,2011,2013,2015-16 Red Hat Inc., Durham, North Carolina.
+  * All Rights Reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+@@ -31,6 +31,7 @@
+ #include <sys/stat.h>
+ #include <errno.h>
+ #include <string.h>
++#include <time.h>
+ #include <sys/time.h>
+ #include <sys/vfs.h>
+ #include <limits.h>     /* POSIX_HOST_NAME_MAX */
+@@ -45,16 +46,12 @@ extern volatile int stop;
+ 
+ struct auditd_consumer_data {
+     struct daemon_conf *config;
+-    pthread_mutex_t queue_lock;
+-    pthread_cond_t queue_nonempty;
+     struct auditd_reply_list *head;
+-    struct auditd_reply_list *tail;
+     int log_fd;
+     FILE *log_file;
+ };
+ 
+ /* Local function prototypes */
+-static void *event_thread_main(void *arg); 
+ static void handle_event(struct auditd_consumer_data *data);
+ static void write_to_log(const char *buf, struct auditd_consumer_data *data);
+ static void check_log_file_size(struct auditd_consumer_data *data);
+@@ -74,11 +71,11 @@ static void safe_exec(const char *exe);
+ static char *format_raw(const struct audit_reply *rep, 
+ 		struct daemon_conf *config);
+ static void reconfigure(struct auditd_consumer_data *data);
++static void init_flush_thread(void);
+ 
+ 
+ /* Local Data */
+ static struct auditd_consumer_data consumer_data;
+-static pthread_t event_thread;
+ static unsigned int disk_err_warning = 0;
+ static int fs_space_warning = 0;
+ static int fs_admin_space_warning = 0;
+@@ -88,13 +85,21 @@ static const char *SINGLE = "1";
+ static const char *HALT = "0";
+ static char *format_buf = NULL;
+ static off_t log_size = 0;
++static pthread_t flush_thread;
++static pthread_mutex_t flush_lock;
++static pthread_cond_t do_flush;
++static volatile int flush;
+ 
+ 
+ void shutdown_events(void)
+ {
+ 	/* Give it 5 seconds to clear the queue */
+ 	alarm(5);
+-	pthread_join(event_thread, NULL);	
++
++	// Nudge the flush thread
++	pthread_cond_signal(&do_flush);
++	pthread_join(flush_thread, NULL);
++
+ 	free((void *)format_buf);
+ 	fclose(consumer_data.log_file);
+ }
+@@ -105,12 +110,8 @@ int init_event(struct daemon_conf *confi
+ 	consumer_data.config = config;
+ 	consumer_data.log_fd = -1;
+ 
+-	/* Setup IPC mechanisms */
+-	pthread_mutex_init(&consumer_data.queue_lock, NULL);
+-	pthread_cond_init(&consumer_data.queue_nonempty, NULL);
+-
+ 	/* Reset the queue */
+-	consumer_data.head = consumer_data.tail = NULL;
++	consumer_data.head = NULL;
+ 
+ 	/* Now open the log */
+ 	if (config->daemonize == D_BACKGROUND) {
+@@ -129,14 +130,6 @@ int init_event(struct daemon_conf *confi
+ 		setlinebuf(consumer_data.log_file);
+ 	}
+ 
+-	/* Create the worker thread */
+-	if (pthread_create(&event_thread, NULL,
+-			event_thread_main, &consumer_data) < 0) {
+-		audit_msg(LOG_ERR, "Couldn't create event thread, exiting");
+-		fclose(consumer_data.log_file);
+-		return 1;
+-	}
+-
+ 	if (config->daemonize == D_BACKGROUND) {
+ 		check_log_file_size(&consumer_data);
+ 		check_excess_logs(&consumer_data);
+@@ -149,9 +142,54 @@ int init_event(struct daemon_conf *confi
+ 		fclose(consumer_data.log_file);
+ 		return 1;
+ 	}
++	init_flush_thread();
+ 	return 0;
+ }
+ 
++/* This tells the OS that pending writes need to get going.
++ * Its only used when freq == incremental. */
++static void *flush_thread_main(void *arg)
++{
++	sigset_t sigs;
++
++	/* This is a worker thread. Don't handle signals. */
++	sigemptyset(&sigs);
++	sigaddset(&sigs, SIGALRM);
++	sigaddset(&sigs, SIGTERM);
++	sigaddset(&sigs, SIGHUP);
++	sigaddset(&sigs, SIGUSR1);
++	sigaddset(&sigs, SIGUSR2);
++	pthread_sigmask(SIG_SETMASK, &sigs, NULL);
++
++	while (!stop) {
++		pthread_mutex_lock(&flush_lock);
++
++		// In the event that the logging thread requests another
++		// flush before the first completes, this simply turns
++		// into a loop of fsyncs.
++		while (flush == 0) {
++			pthread_cond_wait(&do_flush, &flush_lock);
++			if (stop)
++				return NULL;
++		}
++		flush = 0;
++		pthread_mutex_unlock(&flush_lock);
++
++		fsync(consumer_data.log_fd);
++	}
++	return NULL;
++}
++
++/* We setup the flush thread no matter what. This is incase a reconfig
++ * changes from non incremental to incremental or vise versa. */
++static void init_flush_thread(void)
++{
++	pthread_mutex_init(&flush_lock, NULL);
++	pthread_cond_init(&do_flush, NULL);
++	flush = 0;
++	pthread_create(&flush_thread, NULL, flush_thread_main, NULL);
++}
++
+ /* This function takes a malloc'd rep and places it on the queue. The 
+    dequeue'r is responsible for freeing the memory. */
+ void enqueue_event(struct auditd_reply_list *rep)
+@@ -159,8 +197,8 @@ void enqueue_event(struct auditd_reply_l
+ 	char *buf = NULL;
+ 	int len;
+ 
+-	rep->ack_func = 0;
+-	rep->ack_data = 0;
++	rep->ack_func = NULL;
++	rep->ack_data = NULL;
+ 	rep->sequence_id = 0;
+ 
+ 	if (rep->reply.type != AUDIT_DAEMON_RECONFIG) {
+@@ -181,9 +219,6 @@ void enqueue_event(struct auditd_reply_l
+ 			}
+ 			break;
+ 		default:
+-			audit_msg(LOG_ERR, 
+-				  "Illegal log format detected %d", 
+-				  consumer_data.config->log_format);
+ 			// Internal DAEMON messages should be free'd
+ 			if (rep->reply.type >= AUDIT_FIRST_DAEMON &&
+ 			    rep->reply.type <= AUDIT_LAST_DAEMON)
+@@ -200,30 +235,20 @@ void enqueue_event(struct auditd_reply_l
+ 				// FIXME: is truncation the right thing to do?
+ 				memcpy(rep->reply.msg.data, buf,
+ 						MAX_AUDIT_MESSAGE_LENGTH-1);
+-				rep->reply.msg.data[MAX_AUDIT_MESSAGE_LENGTH-1] = 0;
++				rep->reply.msg.data[MAX_AUDIT_MESSAGE_LENGTH-1]
++									= 0;
+ 			}
+ 		}
+ 	}
+ 
+-	rep->next = NULL; /* new packet goes at end - so zero this */
+-
+-	pthread_mutex_lock(&consumer_data.queue_lock);
+-	if (consumer_data.head == NULL) {
+-		consumer_data.head = consumer_data.tail = rep;
+-		pthread_cond_signal(&consumer_data.queue_nonempty);
+-	} else {
+-		/* FIXME: wait for room on the queue */
+-
+-		/* OK there's room...add it in */
+-		consumer_data.tail->next = rep; /* link in at end */
+-		consumer_data.tail = rep; /* move end to newest */
+-	}
+-	pthread_mutex_unlock(&consumer_data.queue_lock);
++	consumer_data.head = rep;
++	handle_event(&consumer_data);
+ }
+ 
+ /* This function takes a preformatted message and places it on the
+    queue. The dequeue'r is responsible for freeing the memory. */
+-void enqueue_formatted_event(char *msg, ack_func_type ack_func, void *ack_data, uint32_t sequence_id)
++void enqueue_formatted_event(char *msg, ack_func_type ack_func,
++	 void *ack_data, uint32_t sequence_id)
+ {
+ 	int len;
+ 	struct auditd_reply_list *rep;
+@@ -247,18 +272,8 @@ void enqueue_formatted_event(char *msg,
+ 		rep->reply.msg.data[MAX_AUDIT_MESSAGE_LENGTH-1] = 0;
+ 	}
+ 
+-	pthread_mutex_lock(&consumer_data.queue_lock);
+-	if (consumer_data.head == NULL) {
+-		consumer_data.head = consumer_data.tail = rep;
+-		pthread_cond_signal(&consumer_data.queue_nonempty);
+-	} else {
+-		/* FIXME: wait for room on the queue */
+-
+-		/* OK there's room...add it in */
+-		consumer_data.tail->next = rep; /* link in at end */
+-		consumer_data.tail = rep; /* move end to newest */
+-	}
+-	pthread_mutex_unlock(&consumer_data.queue_lock);
++	consumer_data.head = rep;
++	handle_event(&consumer_data);
+ }
+ 
+ void resume_logging(void)
+@@ -271,59 +286,11 @@ void resume_logging(void)
+ 	audit_msg(LOG_ERR, "Audit daemon is attempting to resume logging.");
+ }
+ 
+-static void *event_thread_main(void *arg) 
+-{
+-	struct auditd_consumer_data *data = arg;
+-	sigset_t sigs;
+-
+-	/* This is a worker thread. Don't handle signals. */
+-	sigemptyset(&sigs);
+-	sigaddset(&sigs, SIGALRM);
+-	sigaddset(&sigs, SIGTERM);
+-	sigaddset(&sigs, SIGHUP);
+-	sigaddset(&sigs, SIGUSR1);
+-	sigaddset(&sigs, SIGUSR2);
+-	pthread_sigmask(SIG_SETMASK, &sigs, NULL);
+-
+-	while (1) {
+-		struct auditd_reply_list *cur;
+-		int stop_req = 0;
+-// FIXME: wait for data 
+-		pthread_mutex_lock(&data->queue_lock);
+-		while (data->head == NULL) {
+-			pthread_cond_wait(&data->queue_nonempty, 
+-				&data->queue_lock);
+-		}
+-// FIXME: at this point we can use data->head unlocked since it won't change.
+-		handle_event(data);
+-		cur = data->head;
+-// FIXME: relock at this point
+-		if (data->tail == data->head)
+-			data->tail = NULL;
+-		data->head = data->head->next;
+-		if (data->head == NULL && stop && 
+-				( cur->reply.type == AUDIT_DAEMON_END ||
+-				cur->reply.type == AUDIT_DAEMON_ABORT) )
+-			stop_req = 1;
+-		pthread_mutex_unlock(&data->queue_lock);
+-
+-		/* Internal DAEMON messages should be free'd */
+-		if (cur->reply.type >= AUDIT_FIRST_DAEMON &&
+-				cur->reply.type <= AUDIT_LAST_DAEMON) {
+-			free((void *)cur->reply.message);
+-		} 
+-		free(cur);
+-		if (stop_req)
+-			break;
+-	}
+-	return NULL;
+-}
+-
+-
+ /* This function takes the newly dequeued event and handles it. */
+ static unsigned int count = 0L;
+ static void handle_event(struct auditd_consumer_data *data)
+ {
++	struct auditd_reply_list *cur;
+ 	char *buf = data->head->reply.msg.data;
+ 
+ 	if (data->head->reply.type == AUDIT_DAEMON_RECONFIG) {
+@@ -336,9 +303,6 @@ static void handle_event(struct auditd_c
+ 		case LF_NOLOG:
+ 			return;
+ 		default:
+-			audit_msg(LOG_ERR, 
+-				  "Illegal log format detected %d", 
+-				  consumer_data.config->log_format);
+ 			return;
+ 		}
+ 	} else if (data->head->reply.type == AUDIT_DAEMON_ROTATE) {
+@@ -347,17 +311,17 @@ static void handle_event(struct auditd_c
+ 			return;
+ 	}
+ 	if (!logging_suspended) {
+-
+ 		write_to_log(buf, data);
+ 
+ 		/* See if we need to flush to disk manually */
+-		if (data->config->flush == FT_INCREMENTAL) {
++		if (data->config->flush == FT_INCREMENTAL ||
++			data->config->flush == FT_INCREMENTAL_ASYNC) {
+ 			count++;
+ 			if ((count % data->config->freq) == 0) {
+ 				int rc;
+ 				errno = 0;
+ 				do {
+-					rc = fflush(data->log_file);
++					rc = fflush_unlocked(data->log_file);
+ 				} while (rc < 0 && errno == EINTR);
+ 		                if (errno) {
+ 		                	if (errno == ENOSPC && 
+@@ -370,15 +334,33 @@ static void handle_event(struct auditd_c
+ 						data->config, errno);
+ 				}
+ 
+-				/* EIO is only likely failure mode */
+-				if ((data->config->daemonize == D_BACKGROUND)&& 
+-						(fsync(data->log_fd) != 0)) {
+-				     do_disk_error_action("fsync",
+-					data->config, errno);
++				if (data->config->daemonize == D_BACKGROUND) {
++					if (data->config->flush ==
++							FT_INCREMENTAL) {
++						/* EIO is only likely failure */
++						if (fsync(data->log_fd) != 0) {
++						     do_disk_error_action(
++							"fsync",
++							data->config, errno);
++						}
++					} else {
++						pthread_mutex_lock(&flush_lock);
++						flush = 1;
++						pthread_cond_signal(&do_flush);
++						pthread_mutex_unlock(&flush_lock);
++					}
+ 				}
+ 			}
+ 		}
+ 	}
++	cur = data->head;
++	data->head = NULL;
++	/* Internal DAEMON messages should be free'd */
++	if (cur->reply.type >= AUDIT_FIRST_DAEMON &&
++			cur->reply.type <= AUDIT_LAST_DAEMON) {
++		free((void *)cur->reply.message);
++	} 
++	free(cur);
+ }
+ 
+ static void send_ack(struct auditd_consumer_data *data, int ack_type,
+@@ -398,13 +380,12 @@ static void send_ack(struct auditd_consu
+ static void write_to_log(const char *buf, struct auditd_consumer_data *data)
+ {
+ 	int rc;
+-	FILE *f = data->log_file;
+ 	struct daemon_conf *config = data->config;
+ 	int ack_type = AUDIT_RMW_TYPE_ACK;
+ 	const char *msg = "";
+ 
+ 	/* write it to disk */
+-	rc = fprintf(f, "%s\n", buf);
++	rc = fprintf(data->log_file, "%s\n", buf);
+ 
+ 	/* error? Handle it */
+ 	if (rc < 0) {
+@@ -433,7 +414,9 @@ static void write_to_log(const char *buf
+ 			// occurs on write.
+ 			log_size += rc;
+ 			check_log_file_size(data);
+-			check_space_left(data->log_fd, data);
++			// Keep loose tabs on the free space
++			if (log_size%3 < 2)
++				check_space_left(data->log_fd, data);
+ 		}
+ 
+ 		if (fs_space_warning)
+diff -urp audit-2.4.5.orig/src/auditd-reconfig.c audit-2.4.5/src/auditd-reconfig.c
+--- audit-2.4.5.orig/src/auditd-reconfig.c	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/auditd-reconfig.c	2016-09-07 16:29:35.710355039 -0400
+@@ -33,9 +33,13 @@
+ #include "auditd-config.h"
+ #include "private.h"
+ 
++/* externs we need to know about */
++extern void reconfig_ready(void);
++extern struct auditd_reply_list *reconfig_rep;
++
+ /* This is the configuration manager code */
+ static pthread_t config_thread;
+-static pthread_mutex_t config_lock;
++static pthread_mutex_t config_lock; // Only let one run at a time
+ static void *config_thread_main(void *arg);
+ 
+ void init_config_manager(void)
+@@ -107,7 +111,7 @@ static void *config_thread_main(void *ar
+ 		memcpy(rep->reply.msg.data, &new_config, sizeof(new_config));
+ 		rep->reply.conf = (struct daemon_conf *)rep->reply.msg.data;
+ 		rep->reply.type = AUDIT_DAEMON_RECONFIG;
+-		enqueue_event(rep);
++		reconfig_ready();
+ 	} else {
+ 		// need to send a failed event message
+ 		char txt[MAX_AUDIT_MESSAGE_LENGTH];
+@@ -117,7 +121,8 @@ static void *config_thread_main(void *ar
+ 			rep->reply.signal_info->pid,
+ 			(rep->reply.len > 24) ? 
+ 				rep->reply.signal_info->ctx : "?");
+-		send_audit_event(AUDIT_DAEMON_CONFIG, txt);
++		// FIXME: need to figure out sending this
++		//send_audit_event(AUDIT_DAEMON_CONFIG, txt);
+ 		free_config(&new_config);
+ 		free(rep);
+ 	}
+diff -urp audit-2.4.5.orig/src/Makefile.am audit-2.4.5/src/Makefile.am
+--- audit-2.4.5.orig/src/Makefile.am	2015-12-18 14:20:58.000000000 -0500
++++ audit-2.4.5/src/Makefile.am	2016-09-07 16:29:35.710355039 -0400
+@@ -1,5 +1,5 @@
+ # Makefile.am-- 
+-# Copyright 2004-2006, 2008,2011-15 Red Hat Inc., Durham, North Carolina.
++# Copyright 2004-2006, 2008,2011-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -34,8 +34,8 @@ auditd_SOURCES += auditd-listen.c
+ endif
+ auditd_CFLAGS = -fPIE -DPIE -g -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -pthread
+ auditd_LDFLAGS = -pie -Wl,-z,relro -Wl,-z,now
+-auditd_DEPENDENCIES = mt/libauditmt.a libev/libev.a
+-auditd_LDADD = @LIBWRAP_LIBS@ -Llibev -lev -Lmt -lauditmt -lpthread -lrt -lm $(gss_libs)
++auditd_DEPENDENCIES = libev/libev.a
++auditd_LDADD = @LIBWRAP_LIBS@ -Llibev -lev -laudit -lpthread -lrt -lm $(gss_libs)
+ 
+ auditctl_SOURCES = auditctl.c auditctl-llist.c delete_all.c auditctl-listing.c
+ auditctl_CFLAGS = -fPIE -DPIE -g -D_GNU_SOURCE
+@@ -51,7 +51,5 @@ ausearch_LDADD = -L${top_builddir}/lib -
+ autrace_SOURCES = autrace.c delete_all.c auditctl-llist.c
+ autrace_LDADD = -L${top_builddir}/lib -laudit
+ 
+-mt/libauditmt.a:
+-	make -C mt
+ libev/libev.a:
+ 	make -C libev
+diff -urp audit-2.4.5.orig/src/Makefile.in audit-2.4.5/src/Makefile.in
+--- audit-2.4.5.orig/src/Makefile.in	2015-12-18 14:21:10.000000000 -0500
++++ audit-2.4.5/src/Makefile.in	2016-09-07 16:29:55.464354168 -0400
+@@ -15,7 +15,7 @@
+ @SET_MAKE@
+ 
+ # Makefile.am-- 
+-# Copyright 2004-2006, 2008,2011-15 Red Hat Inc., Durham, North Carolina.
++# Copyright 2004-2006, 2008,2011-16 Red Hat Inc., Durham, North Carolina.
+ # All Rights Reserved.
+ #
+ # This program is free software; you can redistribute it and/or modify
+@@ -455,8 +455,8 @@ auditd_SOURCES = auditd.c auditd-event.c
+ 	$(am__append_1)
+ auditd_CFLAGS = -fPIE -DPIE -g -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -pthread
+ auditd_LDFLAGS = -pie -Wl,-z,relro -Wl,-z,now
+-auditd_DEPENDENCIES = mt/libauditmt.a libev/libev.a
+-auditd_LDADD = @LIBWRAP_LIBS@ -Llibev -lev -Lmt -lauditmt -lpthread -lrt -lm $(gss_libs)
++auditd_DEPENDENCIES = libev/libev.a
++auditd_LDADD = @LIBWRAP_LIBS@ -Llibev -lev -L${top_builddir}/lib -laudit -lpthread -lrt -lm $(gss_libs)
+ auditctl_SOURCES = auditctl.c auditctl-llist.c delete_all.c auditctl-listing.c
+ auditctl_CFLAGS = -fPIE -DPIE -g -D_GNU_SOURCE
+ auditctl_LDFLAGS = -pie -Wl,-z,relro -Wl,-z,now
+@@ -938,8 +938,6 @@ uninstall-am: uninstall-sbinPROGRAMS
+ .PRECIOUS: Makefile
+ 
+ 
+-mt/libauditmt.a:
+-	make -C mt
+ libev/libev.a:
+ 	make -C libev
+ 

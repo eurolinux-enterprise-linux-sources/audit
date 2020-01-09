@@ -3,7 +3,7 @@
 Summary: User space tools for 2.6 kernel auditing
 Name: audit
 Version: 2.4.5
-Release: 3%{?dist}
+Release: 6%{?dist}
 License: GPLv2+
 Group: System Environment/Daemons
 URL: http://people.redhat.com/sgrubb/audit/
@@ -12,10 +12,14 @@ Source0: http://people.redhat.com/sgrubb/audit/%{name}-%{version}.tar.gz
 Patch1: audit-2.4.5-man-page-cleanup.patch
 Patch2: audit-2.4.5_escape_bug.patch
 Patch3: audit-2.4.5-nispom.patch
+# For bz 1369249 - Backport incremental_async flushing mode
+Patch4: audit-2.4.5-incremental-async.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: swig python-devel openldap-devel
 BuildRequires: tcp_wrappers-devel libcap-ng-devel 
 BuildRequires: kernel-headers >= 2.6.29
+# For autoreconf below
+BuildRequires: autoconf automake libtool
 Requires: %{name}-libs = %{version}-%{release}
 Requires: chkconfig
 Requires(pre): coreutils
@@ -86,12 +90,14 @@ behavior.
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
 # Remove --login-immutable
 sed '/loginuid immutable/,+3d' -i contrib/nispom.rules
 sed '/loginuid-immutable/,+3d' -i docs/auditctl.8
+sed '/loginuid immutable/,+3d' -i contrib/stig.rules
 
 %build
-%configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes --with-libwrap --enable-gssapi-krb5=no --with-libcap-ng=yes --enable-zos-remote
+%configure --sbindir=/sbin --libdir=/%{_lib} --with-python=yes --with-python3=no --with-golang=no --with-libwrap --enable-gssapi-krb5=no --with-libcap-ng=yes --enable-zos-remote
 make CFLAGS="%{optflags}" %{?_smp_mflags}
 
 %install
@@ -254,6 +260,12 @@ fi
 %attr(644,root,root) %{_mandir}/man8/audisp-remote.8.gz
 
 %changelog
+* Thu Dec 22 2016 Steve Grubb <sgrubb@redhat.com> 2.4.5-6
+resolves: #1404093 - STIG rules not functional 
+
+* Wed Sep 07 2016 Steve Grubb <sgrubb@redhat.com> 2.4.5-5
+resolves: #1369249 - Backport incremental_async flushing mode
+
 * Fri Mar 04 2016 Steve Grubb <sgrubb@redhat.com> 2.4.5-3
 resolves: #1300383 - Remove --loginuid-immutable in nispom.rules file
 
